@@ -1,6 +1,6 @@
 from app import get_db_connection
 
-def get_5_readings():
+def get_readings_in_bbox():
     conn = get_db_connection()
     cur = conn.cursor()
 
@@ -14,10 +14,10 @@ def get_5_readings():
             from (select id, utc_date, no2, voc, pm1, pm10, pm25) t
         )
         As properties
-    FROM public.plume_sensor  As lg  WHERE latitude IS NOT NULL LIMIT 5 ) As f )  As fc;
+    FROM public.plume_sensor  As lg  WHERE latitude IS NOT NULL and ST_Intersects(ST_MakeEnvelope(-2.175293, 52.277401, -1.576538, 52.608052), geom::geography) ) As f )  As fc;
     """)
 
-    records = cur.fetchall()
+    records = cur.fetchone()
     cur.close()
     conn.close()
     return records

@@ -35,7 +35,7 @@ def get_waqi_archive():
 
 @app.route('/plume')
 def get_plume():
-    plume = get_5_readings()
+    plume = get_readings_in_bbox()
     return jsonify(plume)
 
 
