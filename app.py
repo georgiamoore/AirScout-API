@@ -4,6 +4,7 @@ import psycopg2
 import os
 from dotenv import load_dotenv
 from waqi import *
+from plume import *
 
 load_dotenv()
 
@@ -15,21 +16,14 @@ def hello_world():
     return "<p>Hello, World!</p>"
     
 
-def db_conn():
+def get_db_connection():
     conn = psycopg2.connect(
         host=os.getenv('POSTGRES_HOST'),
         database=os.getenv('POSTGRES_DATABASE'),
         user=os.getenv('POSTGRES_USER'),
         password=os.getenv('POSTGRES_PASSWORD'))
+    return conn
 
-    cur = conn.cursor()
-
-    # Execute a query
-    cur.execute("SELECT * FROM public.plume_sensor LIMIT 5")
-
-    # Retrieve query results
-    records = cur.fetchall()
-    print(records)
 
 @app.route('/waqi')
 def get_waqi():
@@ -39,15 +33,10 @@ def get_waqi():
 def get_waqi_archive():
     return get_historical_aq()
 
-# plume = [
-#     {'id': '1', 'utcDate': 5000, 'no2': 1, 'voc': 1, 'pm1': 1,
-#         'pm10': 1, 'pm25': 1, 'latitude': 1, 'longitude': 1}
-# ]
-
-
-# @app.route('/plume')
-# def get_plume():
-#     return jsonify(plume)
+@app.route('/plume')
+def get_plume():
+    plume = get_5_readings()
+    return jsonify(plume)
 
 
 # @app.route('/plume', methods=['POST'])
