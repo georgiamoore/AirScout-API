@@ -3,6 +3,7 @@ from flask_cors import CORS
 import psycopg2
 import os
 from dotenv import load_dotenv
+from aston import *
 from waqi import *
 from plume import *
 
@@ -38,6 +39,9 @@ def get_plume():
     plume = get_readings_in_bbox()
     return jsonify(plume)
 
+@app.route('/aston')
+def get_aston():
+    return get_sensor_summary('14-02-2023','15-02-2023')
 
 # @app.route('/plume', methods=['POST'])
 # def add_plume():
