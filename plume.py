@@ -17,7 +17,7 @@ def get_readings_in_bbox():
     FROM public.plume_sensor  As lg  WHERE latitude IS NOT NULL and ST_Intersects(ST_MakeEnvelope(-2.175293, 52.277401, -1.576538, 52.608052), geom::geography) ) As f )  As fc;
     """)
 
-    records = cur.fetchone()
+    records = cur.fetchone()[0]
     cur.close()
     conn.close()
     return records
