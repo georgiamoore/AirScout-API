@@ -41,7 +41,7 @@ def get_plume():
 
 @app.route('/aston')
 def get_aston():
-    return get_sensor_summary('14-02-2023','15-02-2023')
+    return get_sensor_summary('14-02-2023','26-02-2023')
 
 # @app.route('/plume', methods=['POST'])
 # def add_plume():
