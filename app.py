@@ -44,10 +44,17 @@ def get_plume():
 def get_aston():
     return get_sensor_summary('14-02-2023','26-02-2023')
 
+@app.route('/defra_birr')
+def get_defra_birr():
+    return get_historic_birr()
 
-@app.route('/defra')
-def get_defra():
-    return get_historic()
+@app.route('/defra_bmld')
+def get_defra_bmld():
+    return get_historic_bmld()
+
+@app.route('/defra_bold')
+def get_defra_bold():
+    return get_historic_bold()
 
 
 

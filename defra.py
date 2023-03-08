@@ -1,7 +1,9 @@
 from pyaurn import importAURN
 from geojson import Feature, Point, FeatureCollection
 
-def get_historic():
+# TODO this is disgusting and needs to be parameterised/tidied up 
+# was just to test request speed - but it works!
+def get_historic_birr():
     # TODO use this to prevent hardcoding lat/long
     # (causes issues with retrieving pollutant list)
     # meta = importMeta()
@@ -13,6 +15,14 @@ def get_historic():
     # TODO - returning all 3 sensors is too slow to be loaded by the frontend map
     # return FeatureCollection(np.concatenate((s1,s2,s3)).tolist()) 
     return FeatureCollection(s1)
+
+def get_historic_bmld():
+    s2 = convert_to_feature_list("BMLD", range(2023, 2024), ['O3', 'NO', 'NO2','NOXasNO2', 'SO2', 'PM10', 'PM2.5'], 52.481346,  -1.918235)
+    return FeatureCollection(s2)
+
+def get_historic_bold():
+    s3 = convert_to_feature_list("BOLD", range(2023, 2024), ['NO', 'NO2','NOXasNO2'], 52.502436,  -2.003497)
+    return FeatureCollection(s3)
 
 
 def convert_to_feature_list(site, years, pollutant_list, latitude, longitude):
