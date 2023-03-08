@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from aston import *
 from waqi import *
 from plume import *
+from defra import *
 
 load_dotenv()
 
@@ -42,6 +43,13 @@ def get_plume():
 @app.route('/aston')
 def get_aston():
     return get_sensor_summary('14-02-2023','26-02-2023')
+
+
+@app.route('/defra')
+def get_defra():
+    return get_historic()
+
+
 
 # @app.route('/plume', methods=['POST'])
 # def add_plume():
