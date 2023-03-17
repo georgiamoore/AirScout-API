@@ -1,10 +1,10 @@
-from app import get_db_connection
+from db import get_db
 
 def get_readings_in_bbox():
-    conn = get_db_connection()
-    cur = conn.cursor()
+    conn = get_db()
+    cursor = conn.cursor()
 
-    cur.execute("""
+    cursor.execute("""
     SELECT row_to_json(fc) 
     FROM ( SELECT 'FeatureCollection' As type, array_to_json(array_agg(f)) As features
     FROM (SELECT 'Feature' As type, 
@@ -17,7 +17,7 @@ def get_readings_in_bbox():
     FROM public.plume_sensor  As lg  WHERE latitude IS NOT NULL and ST_Intersects(ST_MakeEnvelope(-2.175293, 52.277401, -1.576538, 52.608052), geom::geography) ) As f )  As fc;
     """)
 
-    records = cur.fetchone()[0]
-    cur.close()
+    records = cursor.fetchone()[0]
+    cursor.close()
     conn.close()
     return records
