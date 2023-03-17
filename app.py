@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 import os
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -39,10 +39,20 @@ def get_plume():
 def get_aston():
     return get_sensor_summary('14-02-2023','26-02-2023')
 
+@app.route('/fetch_defra')
+def fetch_defra():
+    return fetch_defra_readings("BIRR", range(year, year+1), ['O3', 'NO', 'NO2','NOXasNO2', 'PM10', 'PM2.5'])
+
+# todo period should be only day/week/month/year
 @app.route('/defra')
 def get_defra():
-    # return db_format_testing("BIRR", range(year, year+1), ['O3', 'NO', 'NO2','NOXasNO2', 'PM10', 'PM2.5'])
-    return db_format_testing("BIRR", range(2022, 2023), ['O3', 'NO', 'NO2','NOXasNO2', 'PM10', 'PM2.5'])
+    args = request.args
+    # period = args.get('period')
+    # end_timestamp not entirely needed for now but could be useful for custom time periods later
+    end_timestamp = datetime.datetime.now() 
+    start_timestamp =  end_timestamp - datetime.timedelta(days = 1)
+    return get_defra_features_by_timestamp(start_timestamp, end_timestamp)
+
 
 @app.route('/defra_birr')
 def get_defra_birr():

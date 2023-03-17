@@ -12,7 +12,7 @@ def get_historic_birr():
     # (causes issues with retrieving pollutant list)
     # meta = importMeta()
     # valid_stations = meta[(meta['site_name'].str.contains('Birmingham')) & (meta['end_date']=='ongoing')]
-    s1 = convert_to_feature_list("BIRR", range(2023, 2024), ['O3', 'NO', 'NO2','NOXasNO2', 'PM10', 'PM2.5'], 52.476145,  -1.874978)
+    s1 = convert_defra_to_feature_list("BIRR", range(2023, 2024), ['O3', 'NO', 'NO2','NOXasNO2', 'PM10', 'PM2.5'], 52.476145,  -1.874978)
     # s2 = convert_to_feature_list("BMLD", range(2023, 2024), ['O3', 'NO', 'NO2','NOXasNO2', 'SO2', 'PM10', 'PM2.5'], 52.481346,  -1.918235)
     # s3 = convert_to_feature_list("BOLD", range(2023, 2024), ['NO', 'NO2','NOXasNO2'], 52.502436,  -2.003497)
     # TODO - returning all 3 sensors is too slow to be loaded by the frontend map
@@ -20,15 +20,14 @@ def get_historic_birr():
     return FeatureCollection(s1)
 
 def get_historic_bmld():
-    s2 = convert_to_feature_list("BMLD", range(2023, 2024), ['O3', 'NO', 'NO2','NOXasNO2', 'SO2', 'PM10', 'PM2.5'], 52.481346,  -1.918235)
+    s2 = convert_defra_to_feature_list("BMLD", range(2023, 2024), ['O3', 'NO', 'NO2','NOXasNO2', 'SO2', 'PM10', 'PM2.5'], 52.481346,  -1.918235)
     return FeatureCollection(s2)
 
 def get_historic_bold():
-    s3 = convert_to_feature_list("BOLD", range(2023, 2024), ['NO', 'NO2','NOXasNO2'], 52.502436,  -2.003497)
+    s3 = convert_defra_to_feature_list("BOLD", range(2023, 2024), ['NO', 'NO2','NOXasNO2'], 52.502436,  -2.003497)
     return FeatureCollection(s3)
 
-
-def convert_to_feature_list(site, years, pollutant_list, latitude, longitude):
+def convert_defra_to_feature_list(site, years, pollutant_list, latitude, longitude):
     df = importAURN(site, years, pollutant=pollutant_list)
     df = df.fillna('')
     df = df.rename(columns = {'PM10':'pm10'}) #TODO rename other cols
@@ -44,7 +43,8 @@ def convert_to_feature_list(site, years, pollutant_list, latitude, longitude):
 
     return features
 
-def db_format_testing(site, years, pollutant_list):
+# TODO this could(/should?) add all sites at once if no specific site param given
+def fetch_defra_readings(site, years, pollutant_list):
     # testing params:
     #"BIRR", range(2021, 2022), ['O3', 'NO', 'NO2','NOXasNO2', 'PM10', 'PM2.5']
     df = importAURN(site, years, pollutant=pollutant_list)
@@ -89,5 +89,27 @@ def get_last_reading_timestamp(cursor, table_name):
     cursor.execute("SELECT timestamp FROM %s order by timestamp desc limit 1" % table_name)
     return cursor.fetchone()[0]
 
+def get_defra_features_by_timestamp(start_timestamp, end_timestamp):
+    conn = get_db()
+    cursor = conn.cursor()
 
-
+    cursor.execute("""
+        SELECT row_to_json(fc) FROM 
+        ( SELECT 'FeatureCollection' As type, array_to_json(array_agg(f)) As features FROM
+            ( SELECT 'Feature' As type, 
+                ST_AsGeoJSON(ds.station_location)::json As geometry, 
+                (
+                    select row_to_json(t) 
+                    from (select ds."reading_id", ds."station_code", ds."station_name", ds."timestamp", 
+                        ds."O3", ds."NO", ds."NO2", ds."NOXasNO2", ds."PM10", ds."PM2.5", ds."windspeed", 
+                        ds."wind_direction", ds."temperature") t
+                )
+                As properties
+            FROM (public.defra d natural join defra_station s ) As ds 
+            WHERE ds.timestamp BETWEEN timestamp '%s' and timestamp '%s'   ) As f )  As fc;
+        """ % (start_timestamp, end_timestamp))
+    
+    records = cursor.fetchone()[0]
+    cursor.close()
+    conn.close()
+    return records
