@@ -89,7 +89,7 @@ def get_last_reading_timestamp(cursor, table_name):
     cursor.execute("SELECT timestamp FROM %s order by timestamp desc limit 1" % table_name)
     return cursor.fetchone()[0]
 
-def get_defra_features_by_timestamp(start_timestamp, end_timestamp):
+def get_defra_features_between_timestamps(start_timestamp, end_timestamp):
     conn = get_db()
     cursor = conn.cursor()
 
