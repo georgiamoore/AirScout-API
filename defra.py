@@ -4,8 +4,7 @@ import psycopg2
 import numpy as np
 import psycopg2.extras as extras
 from geojson import Feature, Point, FeatureCollection
-import datetime
-year = datetime.date.today().year
+
 # TODO this is disgusting and needs to be parameterised/tidied up 
 # was just to test request speed - but it works!
 def get_historic_birr():
@@ -45,19 +44,28 @@ def convert_to_feature_list(site, years, pollutant_list, latitude, longitude):
 
     return features
 
-def db_format_testing():
-    return convert_defra_to_db_format("BIRR", range(year, year+1), ['O3', 'NO', 'NO2','NOXasNO2', 'PM10', 'PM2.5'])
-    # return convert_defra_to_db_format("BIRR", range(2021, 2022), ['O3', 'NO', 'NO2','NOXasNO2', 'PM10', 'PM2.5'])
-
-def convert_defra_to_db_format(site, years, pollutant_list):
+def db_format_testing(site, years, pollutant_list):
+    # testing params:
+    #"BIRR", range(2021, 2022), ['O3', 'NO', 'NO2','NOXasNO2', 'PM10', 'PM2.5']
     df = importAURN(site, years, pollutant=pollutant_list)
     # df = df.fillna('')
-    df = df.drop('site', axis=1)
+    # site name is not required in db due to station_code fk from defra_station table
+    df.drop('site', axis=1, inplace=True)
+
     conn = get_db()
     cursor = conn.cursor()
+    # filter df by last timestamp to only add new readings to db
+    last_reading_timestamp = get_last_reading_timestamp(cursor, 'public.defra')
+    df.drop(df[df.date <= last_reading_timestamp].index, inplace=True)
+
+    if len(df.index) > 0:
+        return convert_defra_to_db_format(df, conn, cursor)
+    else:
+        return "No new sensor readings were found."
    
+
+def convert_defra_to_db_format(df, conn, cursor):
     tuples = [tuple(x) for x in df.to_numpy()]
-    print(tuples[0])
 
     # TODO avoid hardcoding column/table names here
     table_name = 'public.defra'
@@ -75,4 +83,11 @@ def convert_defra_to_db_format(site, years, pollutant_list):
 
     cursor.close()
     return "Sensor readings inserted successfully."
+
+
+def get_last_reading_timestamp(cursor, table_name):
+    cursor.execute("SELECT timestamp FROM %s order by timestamp desc limit 1" % table_name)
+    return cursor.fetchone()[0]
+
+
 

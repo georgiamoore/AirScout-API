@@ -7,7 +7,8 @@ from waqi import *
 from plume import *
 from defra import *
 from db import *
-
+import datetime
+year = datetime.date.today().year
 load_dotenv()
 
 app = Flask(__name__)
@@ -40,7 +41,8 @@ def get_aston():
 
 @app.route('/defra')
 def get_defra():
-    return db_format_testing()
+    # return db_format_testing("BIRR", range(year, year+1), ['O3', 'NO', 'NO2','NOXasNO2', 'PM10', 'PM2.5'])
+    return db_format_testing("BIRR", range(2022, 2023), ['O3', 'NO', 'NO2','NOXasNO2', 'PM10', 'PM2.5'])
 
 @app.route('/defra_birr')
 def get_defra_birr():
