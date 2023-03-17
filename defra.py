@@ -105,7 +105,7 @@ def get_defra_features_by_timestamp(start_timestamp, end_timestamp):
                         ds."wind_direction", ds."temperature") t
                 )
                 As properties
-            FROM (public.defra d natural join defra_station s ) As ds 
+            FROM (public.defra d inner join defra_station s using (station_code) ) As ds 
             WHERE ds.timestamp BETWEEN timestamp '%s' and timestamp '%s'   ) As f )  As fc;
         """ % (start_timestamp, end_timestamp))
     
