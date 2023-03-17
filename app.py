@@ -40,7 +40,16 @@ def get_aston():
 
 @app.route('/update_defra')
 def update_defra_readings():
-    return fetch_defra_readings("BIRR", range(year, year+1), ['O3', 'NO', 'NO2','NOXasNO2', 'PM10', 'PM2.5'])
+    args = request.args
+    try:
+        sites = args.getlist('sites')
+    except KeyError:
+        sites = ["BIRR", "BMLD"]
+    # TODO fix pollutant list keyerror when adding BOLD station
+
+    # todo parameterise years
+    # todo parameterise pollutant list
+    return fetch_defra_readings(sites, range(year, year+1), ['O3', 'NO', 'NO2','NOXasNO2', 'PM10', 'PM2.5'])
 
 # todo should days be restricted to 1 day/week/month/year?
 @app.route('/defra')

@@ -1,7 +1,9 @@
+import datetime
 from pyaurn import importAURN
 from db import get_db
 import psycopg2
 import numpy as np
+import pandas as pd
 import psycopg2.extras as extras
 from geojson import Feature, Point, FeatureCollection
 
@@ -44,25 +46,30 @@ def convert_defra_to_feature_list(site, years, pollutant_list, latitude, longitu
     return features
 
 # TODO this could(/should?) add all sites at once if no specific site param given
-def fetch_defra_readings(site, years, pollutant_list):
+def fetch_defra_readings(sites, years, pollutant_list):
     # testing params:
     #"BIRR", range(2021, 2022), ['O3', 'NO', 'NO2','NOXasNO2', 'PM10', 'PM2.5']
-    df = importAURN(site, years, pollutant=pollutant_list)
-    # df = df.fillna('')
-    # site name is not required in db due to station_code fk from defra_station table
-    df.drop('site', axis=1, inplace=True)
-
+    
     conn = get_db()
     cursor = conn.cursor()
-    # filter df by last timestamp to only add new readings to db
-    last_reading_timestamp = get_last_reading_timestamp(cursor, 'public.defra')
-    df.drop(df[df.date <= last_reading_timestamp].index, inplace=True)
+    all_station_dfs = list(map(lambda site: filter_station_readings(site, years, pollutant_list, cursor), sites))
+    df = pd.concat(all_station_dfs)
+    # df = df.fillna('')
 
     if len(df.index) > 0:
         return convert_defra_to_db_format(df, conn, cursor)
     else:
         return "No new sensor readings were found."
    
+def filter_station_readings(site, years, pollutant_list, cursor):
+    df = importAURN(site, years, pollutant=pollutant_list)
+    # filter df by last timestamp to only add new readings to db
+    last_reading_timestamp = get_last_reading_timestamp_for_station(cursor, 'public.defra', site)
+    df.drop(df[df.date <= last_reading_timestamp].index, inplace=True)
+    
+    # site name is not required in db due to station_code fk from defra_station table
+    df.drop('site', axis=1, inplace=True)
+    return df
 
 def convert_defra_to_db_format(df, conn, cursor):
     tuples = [tuple(x) for x in df.to_numpy()]
@@ -87,7 +94,17 @@ def convert_defra_to_db_format(df, conn, cursor):
 
 def get_last_reading_timestamp(cursor, table_name):
     cursor.execute("SELECT timestamp FROM %s order by timestamp desc limit 1" % table_name)
-    return cursor.fetchone()[0]
+    row = cursor.fetchone()
+    if not row:
+        return datetime.datetime(year=2014, month=1, day=1)
+    return row[0]
+
+def get_last_reading_timestamp_for_station(cursor, table_name, station_code):
+    cursor.execute("SELECT timestamp FROM %s WHERE station_code = '%s' order by timestamp desc limit 1" % (table_name, station_code))
+    row = cursor.fetchone()
+    if not row:
+        return datetime.datetime(year=2014, month=1, day=1)
+    return row[0]
 
 def get_defra_features_between_timestamps(start_timestamp, end_timestamp):
     conn = get_db()
