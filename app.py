@@ -48,8 +48,8 @@ def update_defra_readings():
     # TODO fix pollutant list keyerror when adding BOLD station
 
     # todo parameterise years
-    # todo parameterise pollutant list
-    return fetch_defra_readings(sites, range(year, year+1), ['O3', 'NO', 'NO2','NOXasNO2', 'PM10', 'PM2.5'])
+    # todo parameterise pollutant list (broken on change to python 3.11)
+    return fetch_defra_readings(sites, range(year, year+1))
 
 # todo should days be restricted to 1 day/week/month/year?
 @app.route('/defra')

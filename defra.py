@@ -46,13 +46,13 @@ def convert_defra_to_feature_list(site, years, pollutant_list, latitude, longitu
     return features
 
 # TODO this could(/should?) add all sites at once if no specific site param given
-def fetch_defra_readings(sites, years, pollutant_list):
+def fetch_defra_readings(sites, years):
     # testing params:
     #"BIRR", range(2021, 2022), ['O3', 'NO', 'NO2','NOXasNO2', 'PM10', 'PM2.5']
     
     conn = get_db()
     cursor = conn.cursor()
-    all_station_dfs = list(map(lambda site: filter_station_readings(site, years, pollutant_list, cursor), sites))
+    all_station_dfs = list(map(lambda site: filter_station_readings(site, years, cursor), sites))
     df = pd.concat(all_station_dfs)
     # df = df.fillna('')
 
@@ -61,8 +61,8 @@ def fetch_defra_readings(sites, years, pollutant_list):
     else:
         return "No new sensor readings were found."
    
-def filter_station_readings(site, years, pollutant_list, cursor):
-    df = importAURN(site, years, pollutant=pollutant_list)
+def filter_station_readings(site, years, cursor):
+    df = importAURN(site, years)
     # filter df by last timestamp to only add new readings to db
     last_reading_timestamp = get_last_reading_timestamp_for_station(cursor, 'public.defra', site)
     df.drop(df[df.date <= last_reading_timestamp].index, inplace=True)
