@@ -132,29 +132,34 @@ def get_defra_features_between_timestamps(start_timestamp, end_timestamp, pollut
     conn.close()
     return feature_collection
 
-
+#TODO consider if these should consider the full time period (e.g. all of a month rather than truncated by week)
 def get_chart_format(days, pollutants):
     end_timestamp = datetime.datetime.now() 
     start_timestamp =  end_timestamp - datetime.timedelta(int(days))
     feature_collection = get_defra_features_between_timestamps(start_timestamp, end_timestamp, pollutants)
     df = gpd.GeoDataFrame.from_features(feature_collection)
     df = df[["timestamp", *pollutants]]
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    df[df.columns.intersection(pollutants)] = df[df.columns.intersection(pollutants)].astype('float')
     if int(days) > 30:
         # grouping by month
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
-        print(df[df.columns.intersection(pollutants)])
-        df[df.columns.intersection(pollutants)] =df[df.columns.intersection(pollutants)].astype('float')
         g = df.set_index('timestamp')
         g = g.resample('M').mean()
-        g.index = g.index.month_name() + ' ' + g.index.year.astype(str)
+        g.index = g.index.strftime("%B %Y")
         return g.reset_index().to_json(orient='records')
     elif int(days) > 7:
         # group by week
-        print("group by week")
+        # TODO not sure if dates returned by this one are very clear?
+        # revisit after recharts prototyping
+        g = df.set_index('timestamp')
+        g = g.resample('W').mean()
+        g.index = g.index.strftime("%d-%m-%Y")
+        return g.reset_index().to_json(orient='records')
     elif int(days) > 1:
         # group by day
-        print("group by day")
-    # print(df[["timestamp", *pollutants]])
-    return df.to_json(orient='records')
+        g = df.set_index('timestamp')
+        g = g.resample('D').mean()
+        g.index = g.index.strftime("%a %d")
+        return g.reset_index().to_json(orient='records')
 
 
