@@ -73,7 +73,7 @@ def get_stats():
     pollutants = ['O3', 'NO', 'NO2', 'NOXasNO2', 'PM10', 'PM2.5']
     if len(args.getlist('pollutants')) >0:
             pollutants = args.getlist('pollutants')
-    days = args.get('days', 1)
+    days = args.get('days')
     type = args.get('type', 'line') # todo come back to this once finished prototyping w/ recharts on frontend
     # ^ ideally should be able to use this api route to get all stats charts -> this param should be like line/bar/pie/calendar etc
 

@@ -135,31 +135,44 @@ def get_defra_features_between_timestamps(start_timestamp, end_timestamp, pollut
 #TODO consider if these should consider the full time period (e.g. all of a month rather than truncated by week)
 def get_chart_format(days, pollutants):
     end_timestamp = datetime.datetime.now() 
-    start_timestamp =  end_timestamp - datetime.timedelta(int(days))
+    if days is None:
+        start_timestamp =  end_timestamp - datetime.timedelta(365)
+    elif int(days) == 1: # used to get a full day of data (DEFRA only updates at the end of a day)
+        day_start = end_timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+        start_timestamp = day_start - datetime.timedelta(hours=24)
+    else: 
+        start_timestamp =  end_timestamp - datetime.timedelta(int(days))
     feature_collection = get_defra_features_between_timestamps(start_timestamp, end_timestamp, pollutants)
     df = gpd.GeoDataFrame.from_features(feature_collection)
     df = df[["timestamp", *pollutants]]
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df[df.columns.intersection(pollutants)] = df[df.columns.intersection(pollutants)].astype('float')
+
+    if days is None:
+        return { 
+            'year': group_df(df, 'M', "%B %Y"),
+            'month': group_df(df[(df['timestamp'] > end_timestamp-datetime.timedelta(30)) & (df['timestamp'] <= end_timestamp)], 'W', "%d-%m-%Y"),
+            'week': group_df(df[(df['timestamp'] > end_timestamp-datetime.timedelta(7)) & (df['timestamp'] <= end_timestamp)], 'D', "%a %d"),
+            'yesterday': group_df(df[(df['timestamp'] > end_timestamp-datetime.timedelta(1)) & (df['timestamp'] <= end_timestamp)], 'H', "%H:%M"),
+        }
     if int(days) > 30:
         # grouping by month
-        g = df.set_index('timestamp')
-        g = g.resample('M').mean()
-        g.index = g.index.strftime("%B %Y")
-        return g.reset_index().to_json(orient='records')
+        return group_df(df, 'M', "%B %Y")
     elif int(days) > 7:
         # group by week
         # TODO not sure if dates returned by this one are very clear?
         # revisit after recharts prototyping
-        g = df.set_index('timestamp')
-        g = g.resample('W').mean()
-        g.index = g.index.strftime("%d-%m-%Y")
-        return g.reset_index().to_json(orient='records')
+        return group_df(df, 'W', "%d-%m-%Y")
     elif int(days) > 1:
         # group by day
-        g = df.set_index('timestamp')
-        g = g.resample('D').mean()
-        g.index = g.index.strftime("%a %d")
-        return g.reset_index().to_json(orient='records')
+        return group_df(df, 'D', "%a %d")
+    elif int(days) == 1:
+        # yesterday's data
+        return group_df(df, 'H', "%H:%M")
 
 
+def group_df(df, period, timestamp_format):
+    g = df.set_index('timestamp')
+    g = g.resample(period).mean()
+    g.index = g.index.strftime(timestamp_format)
+    return g.reset_index().to_json(orient='records')
