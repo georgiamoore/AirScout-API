@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import psycopg2.extras as extras
 from geojson import Feature, Point, FeatureCollection
+import geopandas as gpd
 
 # TODO this is disgusting and needs to be parameterised/tidied up 
 # was just to test request speed - but it works!
@@ -126,7 +127,34 @@ def get_defra_features_between_timestamps(start_timestamp, end_timestamp, pollut
             WHERE ds.timestamp BETWEEN timestamp '%s' and timestamp '%s'   ) As f )  As fc;
         """ % (pollutants_str, start_timestamp, end_timestamp))
     # TODO handle undefined columns
-    records = cursor.fetchone()[0]
+    feature_collection = cursor.fetchone()[0]
     cursor.close()
     conn.close()
-    return records
+    return feature_collection
+
+
+def get_chart_format(days, pollutants):
+    end_timestamp = datetime.datetime.now() 
+    start_timestamp =  end_timestamp - datetime.timedelta(int(days))
+    feature_collection = get_defra_features_between_timestamps(start_timestamp, end_timestamp, pollutants)
+    df = gpd.GeoDataFrame.from_features(feature_collection)
+    df = df[["timestamp", *pollutants]]
+    if int(days) > 30:
+        # grouping by month
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        print(df[df.columns.intersection(pollutants)])
+        df[df.columns.intersection(pollutants)] =df[df.columns.intersection(pollutants)].astype('float')
+        g = df.set_index('timestamp')
+        g = g.resample('M').mean()
+        g.index = g.index.month_name() + ' ' + g.index.year.astype(str)
+        return g.reset_index().to_json(orient='records')
+    elif int(days) > 7:
+        # group by week
+        print("group by week")
+    elif int(days) > 1:
+        # group by day
+        print("group by day")
+    # print(df[["timestamp", *pollutants]])
+    return df.to_json(orient='records')
+
+

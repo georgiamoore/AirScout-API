@@ -55,7 +55,7 @@ def update_defra_readings():
 @app.route('/defra')
 def get_defra_readings():
     args = request.args
-    pollutants = ['O3', 'NO', 'NO2','NOXasNO2', 'PM10', 'PM2.5']
+    pollutants = ['O3', 'NO', 'NO2', 'NOXasNO2', 'PM10', 'PM2.5']
     if len(args.getlist('pollutants')) >0:
         pollutants = args.getlist('pollutants')
         # TODO check validity of given list - exclude invalid pollutants here or handle later on? (likely both)
@@ -65,17 +65,36 @@ def get_defra_readings():
     start_timestamp =  end_timestamp - datetime.timedelta(int(days))
     return get_defra_features_between_timestamps(start_timestamp, end_timestamp, pollutants)
 
-@app.route('/defra_birr')
-def get_defra_birr():
-    return get_historic_birr()
 
-@app.route('/defra_bmld')
-def get_defra_bmld():
-    return get_historic_bmld()
+@app.route('/stats')
+def get_stats():
+    args = request.args
+    source = args.get('source', 'defra') # todo default should be combined stats from all sources
+    pollutants = ['O3', 'NO', 'NO2', 'NOXasNO2', 'PM10', 'PM2.5']
+    if len(args.getlist('pollutants')) >0:
+            pollutants = args.getlist('pollutants')
+    days = args.get('days', 1)
+    type = args.get('type', 'line') # todo come back to this once finished prototyping w/ recharts on frontend
+    # ^ ideally should be able to use this api route to get all stats charts -> this param should be like line/bar/pie/calendar etc
 
-@app.route('/defra_bold')
-def get_defra_bold():
-    return get_historic_bold()
+    
+    
+    return get_chart_format(days, pollutants)
+
+
+# @app.route('/defra_birr')
+# def get_defra_birr():
+#     return get_historic_birr()
+
+# @app.route('/defra_bmld')
+# def get_defra_bmld():
+#     return get_historic_bmld()
+
+# @app.route('/defra_bold')
+# def get_defra_bold():
+#     return get_historic_bold()
+
+
 
 
 
