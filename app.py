@@ -40,11 +40,12 @@ def get_aston():
 
 @app.route('/update_defra')
 def update_defra_readings():
+    sites = ["BIRR", "BMLD"] # default settings
+    
     args = request.args
-    try:
+    if len(args.getlist('sites')) >0:
         sites = args.getlist('sites')
-    except KeyError:
-        sites = ["BIRR", "BMLD"]
+  
     # TODO fix pollutant list keyerror when adding BOLD station
 
     # todo parameterise years
