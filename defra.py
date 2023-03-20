@@ -106,7 +106,8 @@ def get_last_reading_timestamp_for_station(cursor, table_name, station_code):
         return datetime.datetime(year=2014, month=1, day=1)
     return row[0]
 
-def get_defra_features_between_timestamps(start_timestamp, end_timestamp):
+def get_defra_features_between_timestamps(start_timestamp, end_timestamp, pollutants):
+    pollutants_str = ", ".join(['ds."' + p + '"' for p in pollutants])
     conn = get_db()
     cursor = conn.cursor()
 
@@ -118,14 +119,13 @@ def get_defra_features_between_timestamps(start_timestamp, end_timestamp):
                 (
                     select row_to_json(t) 
                     from (select ds."reading_id", ds."station_code", ds."station_name", ds."timestamp", 
-                        ds."O3", ds."NO", ds."NO2", ds."NOXasNO2", ds."PM10", ds."PM2.5", ds."windspeed", 
-                        ds."wind_direction", ds."temperature") t
+                        %s, ds."windspeed", ds."wind_direction", ds."temperature") t
                 )
                 As properties
             FROM (public.defra d inner join defra_station s using (station_code) ) As ds 
             WHERE ds.timestamp BETWEEN timestamp '%s' and timestamp '%s'   ) As f )  As fc;
-        """ % (start_timestamp, end_timestamp))
-    
+        """ % (pollutants_str, start_timestamp, end_timestamp))
+    # TODO handle undefined columns
     records = cursor.fetchone()[0]
     cursor.close()
     conn.close()

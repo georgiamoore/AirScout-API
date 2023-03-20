@@ -20,7 +20,6 @@ init_app(app)
 def hello_world():
     return "<p>Hello, World!</p>"
     
-
 @app.route('/waqi')
 def get_waqi():
     return jsonify(get_current_aq())
@@ -55,11 +54,16 @@ def update_defra_readings():
 # todo should days be restricted to 1 day/week/month/year?
 @app.route('/defra')
 def get_defra_readings():
-    days = request.args.get('days', 1)
+    args = request.args
+    pollutants = ['O3', 'NO', 'NO2','NOXasNO2', 'PM10', 'PM2.5']
+    if len(args.getlist('pollutants')) >0:
+        pollutants = args.getlist('pollutants')
+        # TODO check validity of given list - exclude invalid pollutants here or handle later on? (likely both)
+    days = args.get('days', 1)
     # end_timestamp not entirely needed for now but could be useful for custom time periods later
     end_timestamp = datetime.datetime.now() 
     start_timestamp =  end_timestamp - datetime.timedelta(int(days))
-    return get_defra_features_between_timestamps(start_timestamp, end_timestamp)
+    return get_defra_features_between_timestamps(start_timestamp, end_timestamp, pollutants)
 
 @app.route('/defra_birr')
 def get_defra_birr():
