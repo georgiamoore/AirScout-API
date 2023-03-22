@@ -73,14 +73,16 @@ def filter_station_readings(site, years, cursor):
     return df
 
 def convert_defra_to_db_format(df, conn, cursor):
+    df = df.rename(columns = {'code':'station_code', 'date':'timestamp', 'wd':'wind_direction', 'ws':'windspeed', 'temp': 'temperature'})
     tuples = [tuple(x) for x in df.to_numpy()]
 
-    # TODO avoid hardcoding column/table names here
+    # TODO avoid hardcoding table name here
     table_name = 'public.defra'
-    cols = '"station_code", "timestamp", "O3", "NO", "NO2", "NOXasNO2", "PM10", "PM2.5", "windspeed", "wind_direction", "temperature"'
-    
+    # TODO add check to drop columns not in db 
+    # might be helpful -> https://stackoverflow.com/questions/62248875/postgres-drop-data-for-column-that-doesnt-exist-on-insert
+    cols = ', '.join(f'"{c}"' for c in df.columns.tolist())
     query  = "INSERT INTO %s(%s) VALUES %%s" % (table_name, cols)
-   
+
     try:
         extras.execute_values(cursor, query, tuples)
         conn.commit()
