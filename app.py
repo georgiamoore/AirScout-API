@@ -42,7 +42,7 @@ def update_defra_readings():
     sites = ["BIRR", "BMLD", "BOLD"] # default settings
     
     args = request.args
-    if len(args.getlist('sites')) >0:
+    if len(args.getlist('sites')) > 0:
         sites = args.getlist('sites')
   
     # TODO fix pollutant list keyerror when adding BOLD station
@@ -56,13 +56,16 @@ def update_defra_readings():
 def get_defra_readings():
     args = request.args
     pollutants = ['O3', 'NO', 'NO2', 'NOXasNO2', 'PM10', 'PM2.5', 'SO2']
-    if len(args.getlist('pollutants')) >0:
+    if len(args.getlist('pollutants')) > 0:
         pollutants = args.getlist('pollutants')
         # TODO check validity of given list - exclude invalid pollutants here or handle later on? (likely both)
-    days = args.get('days', 1)
     # end_timestamp not entirely needed for now but could be useful for custom time periods later
     end_timestamp = datetime.datetime.now() 
-    start_timestamp =  end_timestamp - datetime.timedelta(int(days))
+    days = args.get('days')
+    if days is None:
+        start_timestamp = get_start_of_prev_day(end_timestamp)
+    else:
+        start_timestamp = end_timestamp - datetime.timedelta(int(days))
     return get_defra_features_between_timestamps(start_timestamp, end_timestamp, pollutants)
 
 
