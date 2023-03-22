@@ -135,13 +135,13 @@ def get_defra_features_between_timestamps(start_timestamp, end_timestamp, pollut
     return feature_collection
 
 #TODO consider if these should consider the full time period (e.g. all of a month rather than truncated by week)
+# would use end_timestamp.replace(day=1, hour=0, minute=0, second=0, microsecond=0) for start of month
 def get_chart_format(days, pollutants):
     end_timestamp = datetime.datetime.now() 
     if days is None:
-        start_timestamp =  end_timestamp - datetime.timedelta(365)
-    elif int(days) == 1: # used to get a full day of data (DEFRA only updates at the end of a day)
-        day_start = end_timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
-        start_timestamp = day_start - datetime.timedelta(hours=24)
+        start_timestamp = end_timestamp - datetime.timedelta(365)
+    elif int(days) == 1: 
+        start_timestamp = get_start_of_prev_day(end_timestamp)
     else: 
         start_timestamp =  end_timestamp - datetime.timedelta(int(days))
     feature_collection = get_defra_features_between_timestamps(start_timestamp, end_timestamp, pollutants)
@@ -155,7 +155,7 @@ def get_chart_format(days, pollutants):
             'year': group_df(df, 'M', "%B %Y"),
             'month': group_df(df[(df['timestamp'] > end_timestamp-datetime.timedelta(30)) & (df['timestamp'] <= end_timestamp)], 'W', "%d-%m-%Y"),
             'week': group_df(df[(df['timestamp'] > end_timestamp-datetime.timedelta(7)) & (df['timestamp'] <= end_timestamp)], 'D', "%a %d"),
-            'yesterday': group_df(df[(df['timestamp'] > end_timestamp-datetime.timedelta(1)) & (df['timestamp'] <= end_timestamp)], 'H', "%H:%M"),
+            'yesterday': group_df(df[(df['timestamp'] > get_start_of_prev_day(end_timestamp)) & (df['timestamp'] <= end_timestamp)], 'H', "%H:%M"),
         }
     if int(days) > 30:
         # grouping by month
@@ -178,3 +178,8 @@ def group_df(df, period, timestamp_format):
     g = g.resample(period).mean()
     g.index = g.index.strftime(timestamp_format)
     return g.reset_index().to_json(orient='records')
+
+# used to get a full day of data (DEFRA only updates at the end of a day)
+def get_start_of_prev_day(end_timestamp):
+    day_start = end_timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+    return day_start - datetime.timedelta(hours=24)
