@@ -26,7 +26,7 @@ init_app(app)
 
 # @app.route('/waqi-archive')
 # def get_waqi_archive():
-#     return get_historical_aq()
+#     return {'source':'waqi', 'data':  get_historical_aq()}
 
 # @app.route('/plume')
 # def get_plume():
@@ -35,7 +35,7 @@ init_app(app)
 
 @app.route('/aston')
 def get_aston():
-    return get_sensor_summary('14-02-2023','26-02-2023')
+    return {'source':'waqi', 'data': get_sensor_summary('14-02-2023','26-02-2023')}
 
 @app.route('/update_defra')
 def update_defra_readings():
@@ -66,7 +66,7 @@ def get_defra_readings():
         start_timestamp = get_start_of_prev_day(end_timestamp)
     else:
         start_timestamp = end_timestamp - datetime.timedelta(int(days))
-    return get_defra_features_between_timestamps(start_timestamp, end_timestamp, pollutants)
+    return {'source':'defra', 'data': get_defra_features_between_timestamps(start_timestamp, end_timestamp, pollutants)}
 
 
 @app.route('/stats')
