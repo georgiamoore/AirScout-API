@@ -16,22 +16,22 @@ CORS(app)
 
 init_app(app)
 
-@app.route("/")
-def hello_world():
-    return "<p>Hello, World!</p>"
+# @app.route("/")
+# def hello_world():
+#     return "<p>Hello, World!</p>"
     
-@app.route('/waqi')
-def get_waqi():
-    return jsonify(get_current_aq())
+# @app.route('/waqi')
+# def get_waqi():
+#     return jsonify(get_current_aq())
 
-@app.route('/waqi-archive')
-def get_waqi_archive():
-    return get_historical_aq()
+# @app.route('/waqi-archive')
+# def get_waqi_archive():
+#     return get_historical_aq()
 
-@app.route('/plume')
-def get_plume():
-    plume = get_readings_in_bbox()
-    return jsonify(plume)
+# @app.route('/plume')
+# def get_plume():
+#     plume = get_readings_in_bbox()
+#     return jsonify(plume)
 
 @app.route('/aston')
 def get_aston():
@@ -39,7 +39,7 @@ def get_aston():
 
 @app.route('/update_defra')
 def update_defra_readings():
-    sites = ["BIRR", "BMLD"] # default settings
+    sites = ["BIRR", "BMLD", "BOLD"] # default settings
     
     args = request.args
     if len(args.getlist('sites')) >0:
@@ -55,7 +55,7 @@ def update_defra_readings():
 @app.route('/defra')
 def get_defra_readings():
     args = request.args
-    pollutants = ['O3', 'NO', 'NO2', 'NOXasNO2', 'PM10', 'PM2.5']
+    pollutants = ['O3', 'NO', 'NO2', 'NOXasNO2', 'PM10', 'PM2.5', 'SO2']
     if len(args.getlist('pollutants')) >0:
         pollutants = args.getlist('pollutants')
         # TODO check validity of given list - exclude invalid pollutants here or handle later on? (likely both)
@@ -70,7 +70,7 @@ def get_defra_readings():
 def get_stats():
     args = request.args
     source = args.get('source', 'defra') # todo default should be combined stats from all sources
-    pollutants = ['O3', 'NO', 'NO2', 'NOXasNO2', 'PM10', 'PM2.5']
+    pollutants = ['O3', 'NO', 'NO2', 'NOXasNO2', 'PM10', 'PM2.5', 'SO2']
     if len(args.getlist('pollutants')) >0:
             pollutants = args.getlist('pollutants')
     days = args.get('days')
@@ -81,7 +81,16 @@ def get_stats():
     
     return get_chart_format(days, pollutants)
 
+#WIP utility route for recreating defra db
+@app.route('/rebuild_defra')
+def rebuild_defra_db():
+    sites = ["BIRR", "BMLD", "BOLD"] # default settings
+    
+    args = request.args
+    if len(args.getlist('sites')) > 0:
+        sites = args.getlist('sites')
 
+    return fetch_defra_readings(sites, range(year-1, year+1))
 # @app.route('/defra_birr')
 # def get_defra_birr():
 #     return get_historic_birr()
