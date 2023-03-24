@@ -1,3 +1,4 @@
+import psycopg2
 import requests
 import os
 from dotenv import load_dotenv
@@ -5,6 +6,9 @@ import json
 import geojson
 import geopandas as gpd
 from flask import Response
+from geojson import Polygon
+from db import get_db
+from utils import convert_df_to_db_format
 
 def get_sensor_summary(start_date, end_date):
     # load_dotenv()
@@ -45,4 +49,50 @@ def format_sensor_summary_as_geojson(summary):
     points.crs = df.crs
     points = points.rename(columns = {'particulatePM10mean':'pm10'}) #TODO rename other cols
     return(points.to_json())
+    
+# TODO needs periodic check
+def fetch_aston_readings(start_date, end_date):
+    load_dotenv()
+    url = os.getenv('ASTON_API_URL') + \
+        "/sensor-summary/as-geojson?start="+start_date+"&end="+end_date+"&averaging_frequency=H&averaging_methods=mean"
+    response = requests.get(url)
+    response = response.json()    
+    
+    if len(response)>0:
+        conn = get_db()
+        cursor = conn.cursor()
+        collection=[]
+        # extracting features for each sensor from geojson
+        for sensor in response:
+            for feature in sensor["geojson"]["features"]:
+                feature["properties"]["sensor_id"] = sensor["sensorid"] 
+            collection.extend(sensor["geojson"]["features"])
+        
+        df = gpd.GeoDataFrame.from_features(collection)
+        sensors = df.groupby('sensor_id').first().reset_index()
+        try:
+            for _, row in sensors.iterrows():
+                # add sensor if not already in db
+                cursor.execute("""
+                SELECT EXISTS(SELECT 1 FROM public.aston_sensor WHERE sensor_id = %s)
+                """, (row['sensor_id'],))
+                exists = cursor.fetchone()[0]
+                if not exists:
+                    cursor.execute("INSERT INTO public.aston_sensor (sensor_id, sensor_location) VALUES (%s, ST_MakePoint(%s, %s))", (row['sensor_id'], row['geometry'].centroid.x, row['geometry'].centroid.y))
+                    conn.commit()
+                
+        except (Exception, psycopg2.DatabaseError) as error:
+                conn.rollback()
+                cursor.close()
+                # TODO fix error return format
+                return("Error: %s" % error)
+        
+
+        cols = {'datetime_UTC':'timestamp', 'O3mean':'O3', 'NOmean':'NO', 'NO2mean':'NO2', 'particulatePM1mean':'PM1', 'particulatePM10mean':'PM10', 'particulatePM2.5mean':'PM2.5', 'ambPressuremean':'pressure', 'ambHumiditymean':'humidity', 'ambTempCmean':'temperature'}
+        # TODO needs duplicate reading check - compound key?
+        return convert_df_to_db_format(df, conn, cursor, 'public.aston', cols)
+    return Response(
+        "No sensor readings found for this timeframe.",
+        status=404,
+    )
     

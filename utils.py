@@ -1,6 +1,8 @@
 import pandas as pd
 import csv, json
 from geojson import Feature, FeatureCollection, Point
+import psycopg2
+import psycopg2.extras as extras
 
 def import_waqi_daily_avg_csv(filename, latitude, longitude):
     # pd.read_csv(filename)
@@ -35,3 +37,29 @@ def import_waqi_daily_avg_csv(filename, latitude, longitude):
 
 import_waqi_daily_avg_csv('birmingham-a4540 roadside-air-quality.csv', 52.476145, -1.874978)
 # import_waqi_daily_avg_csv('birmingham-ladywood-air-quality.csv', 52.481346, -1.918235)
+
+def convert_df_to_db_format(df, conn, cursor, table_name, renamed_cols):
+    df = df.rename(columns = renamed_cols)
+
+    # removing columns that don't exist in db
+    cursor.execute("SELECT * FROM %s LIMIT 0" % (table_name,))
+    db_cols = [desc[0] for desc in cursor.description]
+    df = df[df.columns.intersection(db_cols)]
+   
+    # convert df to list of tuples for bulk insert to db
+    tuples = [tuple(x) for x in df.to_numpy()]
+    cols = ', '.join(f'"{c}"' for c in df.columns.tolist())
+    query  = "INSERT INTO %s(%s) VALUES %%s" % (table_name, cols)
+
+    try:
+        extras.execute_values(cursor, query, tuples)
+        conn.commit()
+    except (Exception, psycopg2.DatabaseError) as error:
+        print(error)
+        conn.rollback()
+        cursor.close()
+        # TODO fix error return format -> use Flask response
+        return("Error: %s" % error)
+
+    cursor.close()
+    return "Sensor readings inserted successfully."

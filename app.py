@@ -34,8 +34,12 @@ init_app(app)
 #     return jsonify(plume)
 
 @app.route('/aston')
-def get_aston():
-    return {'source':'waqi', 'data': get_sensor_summary('14-02-2023','26-02-2023')}
+def get_aston_readings():
+    return {'source':'aston', 'data': get_sensor_summary('14-02-2023','26-02-2023')}
+
+@app.route('/update_aston')
+def update_aston_readings():
+    return fetch_aston_readings('21-03-2023','22-03-2023')
 
 @app.route('/update_defra')
 def update_defra_readings():

@@ -1,12 +1,11 @@
 import datetime
 from pyaurn import importAURN
 from db import get_db
-import psycopg2
 import numpy as np
 import pandas as pd
-import psycopg2.extras as extras
 from geojson import Feature, Point, FeatureCollection
 import geopandas as gpd
+from utils import convert_df_to_db_format
 
 # TODO this is disgusting and needs to be parameterised/tidied up 
 # was just to test request speed - but it works!
@@ -58,7 +57,7 @@ def fetch_defra_readings(sites, years):
     # df = df.fillna('')
 
     if len(df.index) > 0:
-        return convert_defra_to_db_format(df, conn, cursor)
+        return convert_df_to_db_format(df, conn, cursor, 'public.defra', {'date':'utc_date', 'code':'station_code', 'O3':'o3', 'NO':'no', 'NO2':'no2', 'NOXasNO2':'nox_as_no2', 'SO2':'so2', 'PM10':'pm10', 'PM2.5':'pm25'})
     else:
         return "No new sensor readings were found."
    
@@ -72,27 +71,6 @@ def filter_station_readings(site, years, cursor):
     df.drop('site', axis=1, inplace=True)
     return df
 
-def convert_defra_to_db_format(df, conn, cursor):
-    df = df.rename(columns = {'code':'station_code', 'date':'timestamp', 'wd':'wind_direction', 'ws':'windspeed', 'temp': 'temperature'})
-    tuples = [tuple(x) for x in df.to_numpy()]
-
-    # TODO avoid hardcoding table name here
-    table_name = 'public.defra'
-    # TODO add check to drop columns not in db 
-    # might be helpful -> https://stackoverflow.com/questions/62248875/postgres-drop-data-for-column-that-doesnt-exist-on-insert
-    cols = ', '.join(f'"{c}"' for c in df.columns.tolist())
-    query  = "INSERT INTO %s(%s) VALUES %%s" % (table_name, cols)
-
-    try:
-        extras.execute_values(cursor, query, tuples)
-        conn.commit()
-    except (Exception, psycopg2.DatabaseError) as error:
-        conn.rollback()
-        cursor.close()
-        return("Error: %s" % error)
-
-    cursor.close()
-    return "Sensor readings inserted successfully."
 
 
 def get_last_reading_timestamp(cursor, table_name):
