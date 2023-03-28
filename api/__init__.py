@@ -73,8 +73,9 @@ def get_stats():
     args = request.args
     source = args.get('source', 'defra') # todo default should be combined stats from all sources
     pollutants = ['o3', 'no', 'no2', 'nox_as_no2', 'pm10', 'pm2.5', 'so2']
-    if len(args.getlist('pollutants')) >0:
+    if len(args.getlist('pollutants')) > 0:
             pollutants = args.getlist('pollutants')
+            # TODO add check for invalid pollutants
     days = args.get('days')
     type = args.get('type', 'line') # todo come back to this once finished prototyping w/ recharts on frontend
     # ^ ideally should be able to use this api route to get all stats charts -> this param should be like line/bar/pie/calendar etc

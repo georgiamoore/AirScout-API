@@ -126,7 +126,7 @@ def get_chart_format(days, pollutants):
 
 
 def group_df(df, period, timestamp_format):
-    g = df.set_index('timestamp')
+    g = df.set_index(pd.DatetimeIndex(pd.to_datetime(df.timestamp, utc=True)))
     g = g.resample(period).mean()
     g.index = g.index.strftime(timestamp_format)
     return g.reset_index().to_json(orient='records')
