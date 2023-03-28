@@ -89,7 +89,7 @@ def get_defra_features_between_timestamps(start_timestamp, end_timestamp, pollut
 #TODO consider if these should consider the full time period (e.g. all of a month rather than truncated by week)
 # would use end_timestamp.replace(day=1, hour=0, minute=0, second=0, microsecond=0) for start of month
 def get_chart_format(days, pollutants):
-    end_timestamp = datetime.datetime.now() 
+    end_timestamp = datetime.datetime.now(tz=datetime.timezone.utc) 
     if days is None:
         start_timestamp = end_timestamp - datetime.timedelta(365)
     elif int(days) == 1: 
@@ -97,9 +97,13 @@ def get_chart_format(days, pollutants):
     else: 
         start_timestamp =  end_timestamp - datetime.timedelta(int(days))
     feature_collection = get_defra_features_between_timestamps(start_timestamp, end_timestamp, pollutants)
+
+    if feature_collection['features'] is None:
+        return "No sensor readings were found for this timeframe."
     df = gpd.GeoDataFrame.from_features(feature_collection)
     df = df[["timestamp", *pollutants]]
-    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True, format='%Y-%m-%dT%H:%M:%S%z')
+
     df[df.columns.intersection(pollutants)] = df[df.columns.intersection(pollutants)].astype('float')
 
     if days is None:
@@ -126,7 +130,7 @@ def get_chart_format(days, pollutants):
 
 
 def group_df(df, period, timestamp_format):
-    g = df.set_index(pd.DatetimeIndex(pd.to_datetime(df.timestamp, utc=True)))
+    g = df.set_index('timestamp')
     g = g.resample(period).mean()
     g.index = g.index.strftime(timestamp_format)
     return g.reset_index().to_json(orient='records')
