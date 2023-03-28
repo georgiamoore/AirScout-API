@@ -2,10 +2,10 @@ from flask import Flask, request
 import os
 from flask_cors import CORS
 from dotenv import load_dotenv
-from aston import *
-from waqi import *
-from plume import *
-from defra import *
+from .aston import *
+from .waqi import *
+from .plume import *
+from .defra import *
 from config import config
 import datetime
 year = datetime.date.today().year
@@ -19,7 +19,7 @@ def create_app(app_environment=None):
         app = Flask(__name__)
         app.config.from_object(config[app_environment])
     CORS(app)
-    from db import init_app
+    from .db import init_app
     init_app(app)
 
     return app

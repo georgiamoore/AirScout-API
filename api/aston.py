@@ -7,8 +7,8 @@ import geojson
 import geopandas as gpd
 from flask import Response
 from geojson import Polygon
-from db import get_db
-from utils import convert_df_to_db_format
+from .db import get_db
+from .utils import convert_df_to_db_format
 
 def get_sensor_summary(start_date, end_date):
     # load_dotenv()

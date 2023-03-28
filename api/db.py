@@ -1,7 +1,6 @@
 from flask import current_app
 from flask import g
 import psycopg2
-import os
 
 def get_db():
     if "conn" not in g:

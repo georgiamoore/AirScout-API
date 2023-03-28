@@ -1,33 +1,12 @@
 import datetime
 from pyaurn import importAURN
-from db import get_db
+from .db import get_db
 import numpy as np
 import pandas as pd
 from geojson import Feature, Point, FeatureCollection
 import geopandas as gpd
-from utils import convert_df_to_db_format
+from .utils import convert_df_to_db_format
 
-# TODO this is disgusting and needs to be parameterised/tidied up 
-# was just to test request speed - but it works!
-def get_historic_birr():
-    # TODO use this to prevent hardcoding lat/long
-    # (causes issues with retrieving pollutant list)
-    # meta = importMeta()
-    # valid_stations = meta[(meta['site_name'].str.contains('Birmingham')) & (meta['end_date']=='ongoing')]
-    s1 = convert_defra_to_feature_list("BIRR", range(2023, 2024), ['O3', 'NO', 'NO2','NOXasNO2', 'PM10', 'PM2.5'], 52.476145,  -1.874978)
-    # s2 = convert_to_feature_list("BMLD", range(2023, 2024), ['O3', 'NO', 'NO2','NOXasNO2', 'SO2', 'PM10', 'PM2.5'], 52.481346,  -1.918235)
-    # s3 = convert_to_feature_list("BOLD", range(2023, 2024), ['NO', 'NO2','NOXasNO2'], 52.502436,  -2.003497)
-    # TODO - returning all 3 sensors is too slow to be loaded by the frontend map
-    # return FeatureCollection(np.concatenate((s1,s2,s3)).tolist()) 
-    return FeatureCollection(s1)
-
-def get_historic_bmld():
-    s2 = convert_defra_to_feature_list("BMLD", range(2023, 2024), ['O3', 'NO', 'NO2','NOXasNO2', 'SO2', 'PM10', 'PM2.5'], 52.481346,  -1.918235)
-    return FeatureCollection(s2)
-
-def get_historic_bold():
-    s3 = convert_defra_to_feature_list("BOLD", range(2023, 2024), ['NO', 'NO2','NOXasNO2'], 52.502436,  -2.003497)
-    return FeatureCollection(s3)
 
 def convert_defra_to_feature_list(site, years, pollutant_list, latitude, longitude):
     df = importAURN(site, years, pollutant=pollutant_list)
@@ -57,16 +36,17 @@ def fetch_defra_readings(sites, years):
     # df = df.fillna('')
 
     if len(df.index) > 0:
-        return convert_df_to_db_format(df, conn, cursor, 'public.defra', {'date':'utc_date', 'code':'station_code', 'O3':'o3', 'NO':'no', 'NO2':'no2', 'NOXasNO2':'nox_as_no2', 'SO2':'so2', 'PM10':'pm10', 'PM2.5':'pm25'})
+        return convert_df_to_db_format(df, conn, cursor, 'public.defra', {'date':'timestamp', 'code':'station_code', 'o3':'O3', 'no':'NO', 'no2':'NO2', 'nox_as_no2':'NOXasNO2', 'so2':'SO2', 'pm10':'PM10', 'pm25':'PM2.5', 'wd':'wind_direction', 'ws':'windspeed', 'temp':'temperature'})
     else:
         return "No new sensor readings were found."
    
 def filter_station_readings(site, years, cursor):
     df = importAURN(site, years)
     # filter df by last timestamp to only add new readings to db
+    df.date = df.date.dt.tz_localize(tz='Europe/London')
     last_reading_timestamp = get_last_reading_timestamp_for_station(cursor, 'public.defra', site)
     df.drop(df[df.date <= last_reading_timestamp].index, inplace=True)
-    
+
     # site name is not required in db due to station_code fk from defra_station table
     df.drop('site', axis=1, inplace=True)
     return df
@@ -88,7 +68,9 @@ def get_last_reading_timestamp_for_station(cursor, table_name, station_code):
     return row[0]
 
 def get_defra_features_between_timestamps(start_timestamp, end_timestamp, pollutants):
+    print(start_timestamp)
     pollutants_str = ", ".join(['ds."' + p + '"' for p in pollutants])
+    print(pollutants_str)
     conn = get_db()
     cursor = conn.cursor()
 
@@ -108,6 +90,7 @@ def get_defra_features_between_timestamps(start_timestamp, end_timestamp, pollut
         """ % (pollutants_str, start_timestamp, end_timestamp))
     # TODO handle undefined columns
     feature_collection = cursor.fetchone()[0]
+    print(cursor)
     cursor.close()
     conn.close()
     return feature_collection

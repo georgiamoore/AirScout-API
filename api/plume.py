@@ -1,4 +1,4 @@
-from db import get_db
+from .db import get_db
 
 def get_readings_in_bbox():
     conn = get_db()
