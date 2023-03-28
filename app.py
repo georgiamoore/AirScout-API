@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, request
 import os
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -6,32 +6,29 @@ from aston import *
 from waqi import *
 from plume import *
 from defra import *
-from db import *
+from config import config
 import datetime
 year = datetime.date.today().year
 load_dotenv()
 
-app = Flask(__name__)
-CORS(app)
+def create_app(app_environment=None):
+    if app_environment is None:
+        app = Flask(__name__)
+        app.config.from_object(config[os.getenv('FLASK_ENV', 'dev')])
+    else:
+        app = Flask(__name__)
+        app.config.from_object(config[app_environment])
+    CORS(app)
+    from db import init_app
+    init_app(app)
 
-init_app(app)
+    return app
+
+app = create_app(os.getenv('FLASK_ENV', 'dev'))
 
 # @app.route("/")
 # def hello_world():
 #     return "<p>Hello, World!</p>"
-    
-# @app.route('/waqi')
-# def get_waqi():
-#     return jsonify(get_current_aq())
-
-# @app.route('/waqi-archive')
-# def get_waqi_archive():
-#     return {'source':'waqi', 'data':  get_historical_aq()}
-
-# @app.route('/plume')
-# def get_plume():
-#     plume = get_readings_in_bbox()
-#     return jsonify(plume)
 
 @app.route('/aston')
 def get_aston_readings():
@@ -39,7 +36,7 @@ def get_aston_readings():
 
 @app.route('/update_aston')
 def update_aston_readings():
-    return fetch_aston_readings('21-03-2023','22-03-2023')
+    return fetch_aston_readings('20-03-2023','23-03-2023')
 
 @app.route('/update_defra')
 def update_defra_readings():
@@ -85,7 +82,6 @@ def get_stats():
     # ^ ideally should be able to use this api route to get all stats charts -> this param should be like line/bar/pie/calendar etc
 
     
-    
     return get_chart_format(days, pollutants)
 
 #WIP utility route for recreating defra db
@@ -98,26 +94,4 @@ def rebuild_defra_db():
         sites = args.getlist('sites')
 
     return fetch_defra_readings(sites, range(year-1, year+1))
-# @app.route('/defra_birr')
-# def get_defra_birr():
-#     return get_historic_birr()
-
-# @app.route('/defra_bmld')
-# def get_defra_bmld():
-#     return get_historic_bmld()
-
-# @app.route('/defra_bold')
-# def get_defra_bold():
-#     return get_historic_bold()
-
-
-
-
-
-# @app.route('/plume', methods=['POST'])
-# def add_plume():
-#     plume.append(request.get_json())
-#     return '', 204
-
-# todo routes for aggregated data by timeframe
 

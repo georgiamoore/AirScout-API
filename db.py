@@ -6,10 +6,10 @@ import os
 def get_db():
     if "conn" not in g:
         g.conn = psycopg2.connect(
-            host=os.getenv('POSTGRES_HOST'),
-            database=os.getenv('POSTGRES_DATABASE'),
-            user=os.getenv('POSTGRES_USER'),
-            password=os.getenv('POSTGRES_PASSWORD'))
+            host=current_app.config['HOST'],
+            database=current_app.config['DATABASE'],
+            user=current_app.config['USER'],
+            password=current_app.config['PASSWORD'])
     return g.conn
 
 def close_db(e=None):
