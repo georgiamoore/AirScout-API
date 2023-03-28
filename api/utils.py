@@ -108,3 +108,10 @@ def group_df(df, period, timestamp_format):
 def get_start_of_prev_day(end_timestamp):
     day_start = end_timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
     return day_start - datetime.timedelta(hours=24)
+
+def get_last_reading_timestamp(cursor, table_name):
+    cursor.execute("SELECT timestamp FROM %s order by timestamp desc nulls last limit 1" % table_name)
+    row = cursor.fetchone()
+    if not row:
+        return datetime.datetime(year=2014, month=1, day=1)
+    return row[0]

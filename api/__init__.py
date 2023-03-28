@@ -62,8 +62,18 @@ class Aston(Resource):
         else:
             start_timestamp = end_timestamp - datetime.timedelta(int(days))
         return {'source':'aston', 'data': get_feature_collection_between_timestamps(start_timestamp, end_timestamp, cols, pollutants, 'aston', 'aston_sensor', 'sensor_id', 'sensor_location')}
+    @api.doc(params={'start_timestamp': {'description': 'Start timestamp for data to be fetched.', 'in': 'query', 'type': 'string', 'example': '01-12-2020'},
+                     'end_timestamp': {'description': 'End timestamp for data to be fetched.', 'in': 'query', 'type': 'string', 'example': '02-12-2020'}})
     def put(self): # updating data
-        return fetch_aston_readings('20-03-2023','23-03-2023')
+        args = request.args
+        end_timestamp = args.get('end_timestamp')
+        if end_timestamp is None:
+            end_timestamp = datetime.datetime.now().strftime('%d-%m-%Y')
+        start_timestamp = args.get('start_timestamp')
+        if start_timestamp is None:
+            start_timestamp = datetime.datetime.strptime(end_timestamp, '%d-%m-%Y') - datetime.timedelta(1) # fetches previous day's data by default
+            start_timestamp = start_timestamp.strftime('%d-%m-%Y')
+        return fetch_aston_readings(start_timestamp, end_timestamp)
 
 
 

@@ -47,12 +47,6 @@ def filter_station_readings(site, years, cursor):
 
 
 
-def get_last_reading_timestamp(cursor, table_name):
-    cursor.execute("SELECT timestamp FROM %s order by timestamp desc nulls last limit 1" % table_name)
-    row = cursor.fetchone()
-    if not row:
-        return datetime.datetime(year=2014, month=1, day=1)
-    return row[0]
 
 def get_last_reading_timestamp_for_station(cursor, table_name, station_code):
     cursor.execute("SELECT timestamp FROM %s WHERE station_code = '%s' order by timestamp desc nulls last limit 1" % (table_name, station_code))
