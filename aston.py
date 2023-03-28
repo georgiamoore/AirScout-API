@@ -89,7 +89,6 @@ def fetch_aston_readings(start_date, end_date):
         
 
         cols = {'datetime_UTC':'timestamp', 'O3mean':'O3', 'NOmean':'NO', 'NO2mean':'NO2', 'particulatePM1mean':'PM1', 'particulatePM10mean':'PM10', 'particulatePM2.5mean':'PM2.5', 'ambPressuremean':'pressure', 'ambHumiditymean':'humidity', 'ambTempCmean':'temperature'}
-        # TODO needs duplicate reading check - compound key?
         return convert_df_to_db_format(df, conn, cursor, 'public.aston', cols)
     return Response(
         "No sensor readings found for this timeframe.",

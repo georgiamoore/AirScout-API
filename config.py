@@ -15,6 +15,9 @@ class ProdConfig:
 class DevConfig:
     # Database configuration
     HOST=os.getenv('POSTGRES_HOST')
+    DATABASE=os.getenv('POSTGRES_DATABASE')
+    USER=os.getenv('POSTGRES_USER')
+    PASSWORD=os.getenv('POSTGRES_PASSWORD')
 
 class TestConfig:
     # Database configuration

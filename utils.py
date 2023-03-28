@@ -49,7 +49,7 @@ def convert_df_to_db_format(df, conn, cursor, table_name, renamed_cols):
     # convert df to list of tuples for bulk insert to db
     tuples = [tuple(x) for x in df.to_numpy()]
     cols = ', '.join(f'"{c}"' for c in df.columns.tolist())
-    query  = "INSERT INTO %s(%s) VALUES %%s" % (table_name, cols)
+    query  = "INSERT INTO %s(%s) VALUES %%s ON CONFLICT DO NOTHING" % (table_name, cols)
 
     try:
         extras.execute_values(cursor, query, tuples)
