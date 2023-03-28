@@ -36,7 +36,7 @@ def fetch_defra_readings(sites, years):
     # df = df.fillna('')
 
     if len(df.index) > 0:
-        return convert_df_to_db_format(df, conn, cursor, 'public.defra', {'date':'timestamp', 'code':'station_code', 'o3':'O3', 'no':'NO', 'no2':'NO2', 'nox_as_no2':'NOXasNO2', 'so2':'SO2', 'pm10':'PM10', 'pm25':'PM2.5', 'wd':'wind_direction', 'ws':'windspeed', 'temp':'temperature'})
+        return convert_df_to_db_format(df, conn, cursor, 'public.defra', {'date':'timestamp', 'code':'station_code', 'O3':'o3', 'NO':'no', 'NO2':'no2', 'NOXasNO2':'nox_as_no2', 'SO2':'so2', 'PM10':'pm10', 'PM2.5':'pm2.5', 'wd':'wind_direction', 'ws':'windspeed', 'temp':'temperature'})
     else:
         return "No new sensor readings were found."
    
@@ -68,9 +68,7 @@ def get_last_reading_timestamp_for_station(cursor, table_name, station_code):
     return row[0]
 
 def get_defra_features_between_timestamps(start_timestamp, end_timestamp, pollutants):
-    print(start_timestamp)
     pollutants_str = ", ".join(['ds."' + p + '"' for p in pollutants])
-    print(pollutants_str)
     conn = get_db()
     cursor = conn.cursor()
 
@@ -90,7 +88,6 @@ def get_defra_features_between_timestamps(start_timestamp, end_timestamp, pollut
         """ % (pollutants_str, start_timestamp, end_timestamp))
     # TODO handle undefined columns
     feature_collection = cursor.fetchone()[0]
-    print(cursor)
     cursor.close()
     conn.close()
     return feature_collection

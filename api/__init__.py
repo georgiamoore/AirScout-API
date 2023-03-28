@@ -56,7 +56,7 @@ def update_defra_readings():
 @app.route('/defra')
 def get_defra_readings():
     args = request.args
-    pollutants = ['O3', 'NO', 'NO2', 'NOXasNO2', 'PM10', 'PM2.5', 'SO2']
+    pollutants = ['o3', 'no', 'no2', 'nox_as_no2', 'pm10', 'pm2.5', 'so2']
     if len(args.getlist('pollutants')) > 0:
         pollutants = args.getlist('pollutants')
         # TODO check validity of given list - exclude invalid pollutants here or handle later on? (likely both)
@@ -74,7 +74,7 @@ def get_defra_readings():
 def get_stats():
     args = request.args
     source = args.get('source', 'defra') # todo default should be combined stats from all sources
-    pollutants = ['O3', 'NO', 'NO2', 'NOXasNO2', 'PM10', 'PM2.5', 'SO2']
+    pollutants = ['o3', 'no', 'no2', 'nox_as_no2', 'pm10', 'pm2.5', 'so2']
     if len(args.getlist('pollutants')) >0:
             pollutants = args.getlist('pollutants')
     days = args.get('days')

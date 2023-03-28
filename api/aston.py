@@ -88,7 +88,7 @@ def fetch_aston_readings(start_date, end_date):
                 return("Error: %s" % error)
         
 
-        cols = {'datetime_UTC':'timestamp', 'O3mean':'O3', 'NOmean':'NO', 'NO2mean':'NO2', 'particulatePM1mean':'PM1', 'particulatePM10mean':'PM10', 'particulatePM2.5mean':'PM2.5', 'ambPressuremean':'pressure', 'ambHumiditymean':'humidity', 'ambTempCmean':'temperature'}
+        cols = {'datetime_UTC':'timestamp', 'O3mean':'o3', 'NOmean':'no', 'NO2mean':'no2', 'particulatePM1mean':'pm1', 'particulatePM10mean':'pm10', 'particulatePM2.5mean':'pm2.5', 'ambPressuremean':'pressure', 'ambHumiditymean':'humidity', 'ambTempCmean':'temperature'}
         return convert_df_to_db_format(df, conn, cursor, 'public.aston', cols)
     return Response(
         "No sensor readings found for this timeframe.",

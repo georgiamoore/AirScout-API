@@ -39,21 +39,15 @@ import_waqi_daily_avg_csv('birmingham-a4540 roadside-air-quality.csv', 52.476145
 # import_waqi_daily_avg_csv('birmingham-ladywood-air-quality.csv', 52.481346, -1.918235)
 
 def convert_df_to_db_format(df, conn, cursor, table_name, renamed_cols):
-    # TODO add null timestamp check
     df = df.rename(columns = renamed_cols)
-    print(df)
     # removing columns that don't exist in db
     cursor.execute("SELECT * FROM %s LIMIT 0" % (table_name,))
     db_cols = [desc[0] for desc in cursor.description]
-    print(db_cols)
-    print(df.columns.tolist())
     df = df[df.columns.intersection(db_cols)]
-    print(df)
+    
     # convert df to list of tuples for bulk insert to db
     tuples = [tuple(x) for x in df.to_numpy()]
-    print(tuples)
     cols = ', '.join(f'"{c}"' for c in df.columns.tolist())
-    print(cols)
     query  = "INSERT INTO %s(%s) VALUES %%s ON CONFLICT DO NOTHING" % (table_name, cols)
 
     try:
