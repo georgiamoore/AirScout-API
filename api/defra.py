@@ -16,8 +16,6 @@ def convert_defra_to_feature_list(site, years, pollutant_list, latitude, longitu
     location = Point((longitude, latitude))
     features = []
     for row in df.itertuples(index=False):
-        # print(df.columns.values) 
-        # print(row["code"])
         features.append(Feature(geometry=location, properties={
             ""+col+"": row[i] for i, col in enumerate(df.columns.values)
         }))
@@ -26,14 +24,10 @@ def convert_defra_to_feature_list(site, years, pollutant_list, latitude, longitu
 
 # TODO this could(/should?) add all sites at once if no specific site param given
 def fetch_defra_readings(sites, years):
-    # testing params:
-    #"BIRR", range(2021, 2022), ['O3', 'NO', 'NO2','NOXasNO2', 'PM10', 'PM2.5']
-    
     conn = get_db()
     cursor = conn.cursor()
     all_station_dfs = list(map(lambda site: filter_station_readings(site, years, cursor), sites))
     df = pd.concat(all_station_dfs)
-    # df = df.fillna('')
 
     if len(df.index) > 0:
         return convert_df_to_db_format(df, conn, cursor, 'public.defra', {'date':'timestamp', 'code':'station_code', 'O3':'o3', 'NO':'no', 'NO2':'no2', 'NOXasNO2':'nox_as_no2', 'SO2':'so2', 'PM10':'pm10', 'PM2.5':'pm2.5', 'wd':'wind_direction', 'ws':'windspeed', 'temp':'temperature'})
@@ -42,7 +36,7 @@ def fetch_defra_readings(sites, years):
    
 def filter_station_readings(site, years, cursor):
     df = importAURN(site, years)
-    # filter df by last timestamp to only add new readings to db
+    # filtering df by last timestamp to only add new readings to db
     df.date = df.date.dt.tz_localize(tz='Europe/London')
     last_reading_timestamp = get_last_reading_timestamp_for_station(cursor, 'public.defra', site)
     df.drop(df[df.date <= last_reading_timestamp].index, inplace=True)

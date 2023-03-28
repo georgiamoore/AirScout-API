@@ -1,10 +1,8 @@
-from flask import Flask, request
+from flask import Flask, jsonify, request
 import os
 from flask_cors import CORS
 from dotenv import load_dotenv
 from .aston import *
-from .waqi import *
-from .plume import *
 from .defra import *
 from config import config
 import datetime
@@ -24,21 +22,21 @@ def create_app(app_environment=None):
 
     return app
 
-app = create_app(os.getenv('FLASK_ENV', 'dev'))
+api = create_app(os.getenv('FLASK_ENV', 'dev'))
 
-# @app.route("/")
-# def hello_world():
-#     return "<p>Hello, World!</p>"
+@api.route('/ping')
+def ping():
+    return jsonify(ping='pong')
 
-@app.route('/aston')
+@api.route('/aston')
 def get_aston_readings():
     return {'source':'aston', 'data': get_sensor_summary('14-02-2023','26-02-2023')}
 
-@app.route('/update_aston')
+@api.route('/update_aston')
 def update_aston_readings():
     return fetch_aston_readings('20-03-2023','23-03-2023')
 
-@app.route('/update_defra')
+@api.route('/update_defra')
 def update_defra_readings():
     sites = ["BIRR", "BMLD", "BOLD"] # default settings
     
@@ -53,7 +51,7 @@ def update_defra_readings():
     return fetch_defra_readings(sites, range(year, year+1))
 
 # todo should days be restricted to 1 day/week/month/year?
-@app.route('/defra')
+@api.route('/defra')
 def get_defra_readings():
     args = request.args
     pollutants = ['o3', 'no', 'no2', 'nox_as_no2', 'pm10', 'pm2.5', 'so2']
@@ -70,7 +68,7 @@ def get_defra_readings():
     return {'source':'defra', 'data': get_defra_features_between_timestamps(start_timestamp, end_timestamp, pollutants)}
 
 
-@app.route('/stats')
+@api.route('/stats')
 def get_stats():
     args = request.args
     source = args.get('source', 'defra') # todo default should be combined stats from all sources
@@ -85,7 +83,7 @@ def get_stats():
     return get_chart_format(days, pollutants)
 
 #WIP utility route for recreating defra db
-@app.route('/rebuild_defra')
+@api.route('/rebuild_defra')
 def rebuild_defra_db():
     sites = ["BIRR", "BMLD", "BOLD"] # default settings
     
