@@ -65,7 +65,7 @@ def fetch_defra_readings(sites, years):
 def filter_station_readings(site, years, cursor):
     df = importAURN(site, years)
     # filtering df by last timestamp to only add new readings to db
-    df.date = df.date.dt.tz_localize(tz="Europe/London")
+    df.date = df.date.dt.tz_localize(tz="Europe/London", nonexistent='shift_forward')
     last_reading_timestamp = get_last_reading_timestamp_for_station(
         cursor, "public.defra", site
     )
