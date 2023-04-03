@@ -5,15 +5,19 @@ import psycopg2.extras as extras
 from .db import get_db
 import geopandas as gpd
 import pandas as pd
-from rpy2.robjects.packages import importr
+from rpy2.robjects.packages import importr, quiet_require
+from rpy2.rinterface_lib.embedded import RRuntimeError
 from flask import Response, g, jsonify
 from flask import current_app
 def get_openair():
     if "openair" not in g:
         utils = importr('utils')
-        utils.chooseCRANmirror(ind=1)
-        utils.install_packages('openair')
-        g.openair = importr("openair")
+        try:
+            g.openair = importr('openair')
+        except RRuntimeError:
+            utils.chooseCRANmirror(ind=1)
+            utils.install_packages('openair')
+            g.openair = importr('openair')
     return g.openair
 
 def convert_df_to_db_format(df, conn, cursor, table_name, renamed_cols):
