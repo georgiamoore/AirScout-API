@@ -54,7 +54,6 @@ def format_sensor_summary_as_geojson(summary):
     return points.to_json()
 
 
-# TODO needs periodic check
 def fetch_aston_readings(start_date, end_date):
     load_dotenv()
     url = (
@@ -69,6 +68,7 @@ def fetch_aston_readings(start_date, end_date):
     response = response.json()
 
     if len(response) > 0:
+        # TODO combine this with add_defra_stations in defra.py
         conn = get_db()
         cursor = conn.cursor()
         collection = []

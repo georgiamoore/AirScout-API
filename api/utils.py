@@ -1,10 +1,20 @@
 import datetime
+import numpy as np
 import psycopg2
 import psycopg2.extras as extras
 from .db import get_db
 import geopandas as gpd
 import pandas as pd
+from rpy2.robjects.packages import importr
+from flask import g
 
+def get_openair():
+    if "openair" not in g:
+        utils = importr('utils')
+        utils.chooseCRANmirror(ind=1)
+        utils.install_packages('openair')
+        g.openair = importr("openair")
+    return g.openair
 
 def convert_df_to_db_format(df, conn, cursor, table_name, renamed_cols):
     df = df.rename(columns=renamed_cols)
@@ -72,6 +82,7 @@ def get_feature_collection_between_timestamps(
     )
     # TODO handle undefined columns
     feature_collection = cursor.fetchone()[0]
+    # TODO could aggregate data if end-start > 1 day
     cursor.close()
     conn.close()
     return feature_collection
@@ -162,19 +173,7 @@ def group_df(df, period, timestamp_format):
 
 
 # used to get a full day of data (DEFRA only updates at the end of a day)
-
-
 def get_start_of_prev_day(end_timestamp):
     day_start = end_timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
     return day_start - datetime.timedelta(hours=24)
 
-
-def get_last_reading_timestamp(cursor, table_name):
-    cursor.execute(
-        "SELECT timestamp FROM %s order by timestamp desc nulls last limit 1"
-        % table_name
-    )
-    row = cursor.fetchone()
-    if not row:
-        return datetime.datetime(year=2014, month=1, day=1)
-    return row[0]

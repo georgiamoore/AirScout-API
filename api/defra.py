@@ -1,79 +1,120 @@
 import datetime
-from pyaurn import importAURN
-from .db import get_db
-import numpy as np
+from flask import Response
 import pandas as pd
-from geojson import Feature, Point, FeatureCollection
-import geopandas as gpd
-from .utils import convert_df_to_db_format, get_feature_collection_between_timestamps
+from .db import get_db
+from .utils import convert_df_to_db_format, get_openair
+import rpy2
+from rpy2.robjects.pandas2ri import rpy2py
+import psycopg2
 
-
-def convert_defra_to_feature_list(site, years, pollutant_list, latitude, longitude):
-    df = importAURN(site, years, pollutant=pollutant_list)
-    df = df.fillna("")
-    df = df.rename(columns={"PM10": "pm10"})  # TODO rename other cols
-    df["date"] = df["date"].astype(str)
-    location = Point((longitude, latitude))
-    features = []
-    for row in df.itertuples(index=False):
-        features.append(
-            Feature(
-                geometry=location,
-                properties={
-                    "" + col + "": row[i] for i, col in enumerate(df.columns.values)
-                },
-            )
-        )
-
-    return features
-
-
-# TODO this could(/should?) add all sites at once if no specific site param given
-def fetch_defra_readings(sites, years):
+def get_defra_daqi():
+    openair = get_openair()
     conn = get_db()
     cursor = conn.cursor()
-    all_station_dfs = list(
-        map(lambda site: filter_station_readings(site, years, cursor), sites)
-    )
-    df = pd.concat(all_station_dfs)
+    try:
+        cursor.execute("SELECT station_code FROM public.defra_station")
+        stations = [s[0] for s in cursor.fetchall()]
+        rpy2.robjects.pandas2ri.activate()
+        daqi = rpy2py(openair.importAURN(
+                site=stations,
+                year=datetime.date.today().year,
+                data_type="daqi",
+                pollutant="all",
+            ))
 
-    if len(df.index) > 0:
-        return convert_df_to_db_format(
-            df,
-            conn,
-            cursor,
-            "public.defra",
-            {
-                "date": "timestamp",
-                "code": "station_code",
-                "O3": "o3",
-                "NO": "no",
-                "NO2": "no2",
-                "NOXasNO2": "nox_as_no2",
-                "SO2": "so2",
-                "PM10": "pm10",
-                "PM2.5": "pm2.5",
-                "wd": "wind_direction",
-                "ws": "windspeed",
-                "temp": "temperature",
-            },
-        )
-    else:
-        return "No new sensor readings were found."
+        filtered = daqi[daqi['code'].isin(stations)].sort_values('date', ascending=False).groupby('pollutant').first().reset_index()
+        response = Response(response=filtered.to_json(orient='records'),
+            status=200,
+            mimetype="application/json")
+        return(response)
 
+    except (Exception, psycopg2.DatabaseError) as error:
+        conn.rollback()
+        cursor.close()
+        # TODO fix error return format
+        return "Error: %s" % error
+    
+def fetch_defra_readings(years):
+    openair = get_openair()
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT station_code FROM public.defra_station")
+        stations = [s[0] for s in cursor.fetchall()]
+        rpy2.robjects.pandas2ri.activate()
+        results = rpy2py(openair.importAURN(
+            site=stations,
+            year=years,
+            data_type="hourly",
+            pollutant="all",
+        ))
+        # results = results.where(pd.notnull(results), None)
+        
 
-def filter_station_readings(site, years, cursor):
-    df = importAURN(site, years)
-    # filtering df by last timestamp to only add new readings to db
-    df.date = df.date.dt.tz_localize(tz="Europe/London", nonexistent='shift_forward')
-    last_reading_timestamp = get_last_reading_timestamp_for_station(
-        cursor, "public.defra", site
-    )
-    df.drop(df[df.date <= last_reading_timestamp].index, inplace=True)
+        if len(results.index) > 0:
+            return convert_df_to_db_format(
+                results,
+                conn,
+                cursor,
+                "public.defra",
+                {
+                    "date": "timestamp",
+                    "code": "station_code",
+                    "nox": "nox_as_no2",
+                    "wd": "wind_direction",
+                    "ws": "windspeed",
+                    "air_temp": "temperature",
+                },
+            )
+        else:
+            return "No new sensor readings were found."
+    except (Exception, psycopg2.DatabaseError) as error:
+        conn.rollback()
+        cursor.close()
+        # TODO fix error return format
+        return "Error: %s" % error
 
-    # site name is not required in db due to station_code fk from defra_station table
-    df.drop("site", axis=1, inplace=True)
-    return df
+    
+def fetch_defra_stations():
+    openair = get_openair()
+    rpy2.robjects.pandas2ri.activate()
+    meta_df = rpy2py(openair.importMeta(source="aurn",  all = True))
+    birmingham_stations = meta_df[meta_df['local_authority'] == 'Birmingham'].groupby('code').first().reset_index()
+    # TODO combine this with fetch_aston_readings in aston.py
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        for _, row in birmingham_stations.iterrows():
+            # add sensor if not already in db
+            cursor.execute(
+                """
+            SELECT EXISTS(SELECT 1 FROM public.defra_station WHERE station_code = %s)
+            """,
+                (row["code"],),
+            )
+            exists = cursor.fetchone()[0]
+            if not exists:
+                cursor.execute(
+                    "INSERT INTO public.defra_station (station_code, station_name, station_location) VALUES (%s, %s, ST_MakePoint(%s, %s))",
+                    (
+                        row["code"],
+                        row["site"],
+                        row["longitude"],
+                        row["latitude"],
+                    ),
+                )
+                conn.commit()
+
+    except (Exception, psycopg2.DatabaseError) as error:
+        conn.rollback()
+        cursor.close()
+        # TODO fix error return format
+        print(error)
+        return "Error: %s" % error
+
+    cursor.close()
+    return "DEFRA stations updated successfully."
+
 
 
 def get_last_reading_timestamp_for_station(cursor, table_name, station_code):
