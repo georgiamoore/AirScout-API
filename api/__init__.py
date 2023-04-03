@@ -125,7 +125,10 @@ class Aston(Resource):
             start_timestamp = start_timestamp.strftime("%d-%m-%Y")
         return fetch_aston_readings(start_timestamp, end_timestamp)
 
-
+@api.route("/daqi")
+class DAQI(Resource):
+    def get(self):
+        return get_defra_daqi()
 @api.route("/defra")
 class DEFRA(Resource):
     # todo should days be restricted to 1 day/week/month/year?
@@ -187,17 +190,7 @@ class DEFRA(Resource):
         }
 
     def put(self):
-        sites = ["BIRR", "BMLD", "BOLD"]  # default settings
-
-        args = request.args
-        if len(args.getlist("sites")) > 0:
-            sites = args.getlist("sites")
-
-        # TODO fix pollutant list keyerror when adding BOLD station
-
-        # todo parameterise years
-        # todo parameterise pollutant list (broken on change to python 3.11)
-        return fetch_defra_readings(sites, range(year, year + 1))
+        return fetch_defra_readings([year, year + 1])
 
 
 @api.route("/stats")
@@ -233,14 +226,15 @@ class Stats(Resource):
         return get_chart_format(days, cols, pollutants)
 
 
-@api.route("/rebuild_defra")
-class Utility(Resource):
-    # WIP utility route for recreating defra db
-    def get(self):
-        sites = ["BIRR", "BMLD", "BOLD"]  # default settings
+# TODO made obsolete after openair package change
+# @api.route("/rebuild_defra")
+# class Utility(Resource):
+#     # WIP utility route for recreating defra db
+#     def get(self):
+#         sites = ["BIRR", "BMLD", "BOLD"]  # default settings
 
-        args = request.args
-        if len(args.getlist("sites")) > 0:
-            sites = args.getlist("sites")
+#         args = request.args
+#         if len(args.getlist("sites")) > 0:
+#             sites = args.getlist("sites")
 
-        return fetch_defra_readings(sites, range(year - 1, year + 1))
+#         return fetch_defra_readings(sites, range(year - 1, year + 1))
