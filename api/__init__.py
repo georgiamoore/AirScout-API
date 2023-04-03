@@ -129,6 +129,7 @@ class Aston(Resource):
 class DAQI(Resource):
     def get(self):
         return get_defra_daqi()
+    
 @api.route("/defra")
 class DEFRA(Resource):
     # todo should days be restricted to 1 day/week/month/year?
@@ -204,7 +205,7 @@ class Stats(Resource):
         args = request.args
         # todo default should be combined stats from all sources
         source = args.get("source", "defra")
-        pollutants = ["o3", "no", "no2", "nox_as_no2", "pm10", "pm2.5", "so2"]
+        pollutants = ["o3", "no", "no2", "pm10", "pm2.5"]
         if len(args.getlist("pollutants")) > 0:
             pollutants = args.getlist("pollutants")
             # TODO add check for invalid pollutants
@@ -215,20 +216,20 @@ class Stats(Resource):
         # TODO parameterise this if using this route for aston stats
         # or create some method to combine defra and aston stats ?
         cols = [
-            "reading_id",
-            "station_code",
-            "station_name",
+            # "reading_id",
+            # "station_code",
+            # "station_name",
             "timestamp",
-            "windspeed",
-            "wind_direction",
-            "temperature",
+            # "windspeed",
+            # "wind_direction",
+            
         ]
         return get_chart_format(days, cols, pollutants)
 
 
 # TODO made obsolete after openair package change
-# @api.route("/rebuild_defra")
-# class Utility(Resource):
+@api.route("/rebuild_defra")
+class Utility(Resource):
 #     # WIP utility route for recreating defra db
 #     def get(self):
 #         sites = ["BIRR", "BMLD", "BOLD"]  # default settings
@@ -238,3 +239,5 @@ class Stats(Resource):
 #             sites = args.getlist("sites")
 
 #         return fetch_defra_readings(sites, range(year - 1, year + 1))
+    def put(self):
+        return fetch_defra_stations()

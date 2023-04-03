@@ -6,8 +6,8 @@ from .db import get_db
 import geopandas as gpd
 import pandas as pd
 from rpy2.robjects.packages import importr
-from flask import g
-
+from flask import Response, g, jsonify
+from flask import current_app
 def get_openair():
     if "openair" not in g:
         utils = importr('utils')
@@ -53,33 +53,42 @@ def get_feature_collection_between_timestamps(
 ):
     columns_str = ", ".join(['ds."' + c + '"' for c in columns])
     pollutants_str = ", ".join(['ds."' + p + '"' for p in pollutants])
-    conn = get_db()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        """
-        SELECT row_to_json(fc) FROM 
-        ( SELECT 'FeatureCollection' As type, array_to_json(array_agg(f)) As features FROM
-            ( SELECT 'Feature' As type, 
-                ST_AsGeoJSON(ds.%s)::json As geometry, 
-                (
-                    select row_to_json(t) 
-                    from (select %s) t
-                )
-                As properties
-            FROM (public.%s d inner join %s s using (%s) ) As ds 
-            WHERE ds.timestamp BETWEEN timestamp '%s' and timestamp '%s'   ) As f )  As fc;
-        """
-        % (
-            sensor_location_column,
-            ", ".join([columns_str, pollutants_str]),
-            reading_table,
-            sensor_table,
-            sensor_pkey_column,
-            start_timestamp,
-            end_timestamp,
+    query = """
+            SELECT row_to_json(fc) FROM 
+            ( SELECT 'FeatureCollection' As type, array_to_json(array_agg(f)) As features FROM
+                ( SELECT 'Feature' As type, 
+                    ST_AsGeoJSON(ds.%s)::json As geometry, 
+                    (
+                        select row_to_json(t) 
+                        from (select %s) t
+                    )
+                    As properties
+                FROM (public.%s d inner join %s s using (%s) ) As ds 
+                WHERE ds.timestamp BETWEEN timestamp '%s' and timestamp '%s'   ) As f )  As fc;
+            """ % (
+                sensor_location_column,
+                ", ".join([columns_str, pollutants_str]),
+                reading_table,
+                sensor_table,
+                sensor_pkey_column,
+                start_timestamp,
+                end_timestamp,
+            )
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute(query)
+    except psycopg2.InterfaceError as err:
+        print (err)
+        # conn = get_db()
+        conn = psycopg2.connect(
+            host=current_app.config["HOST"],
+            database=current_app.config["DATABASE"],
+            user=current_app.config["USER"],
+            password=current_app.config["PASSWORD"],
         )
-    )
+        cursor = conn.cursor()
+        cursor.execute(query)
     # TODO handle undefined columns
     feature_collection = cursor.fetchone()[0]
     # TODO could aggregate data if end-start > 1 day
@@ -98,20 +107,33 @@ def get_chart_format(days, cols, pollutants):
         start_timestamp = get_start_of_prev_day(end_timestamp)
     else:
         start_timestamp = end_timestamp - datetime.timedelta(int(days))
-    feature_collection = get_feature_collection_between_timestamps(
+    defra_feature_collection = get_feature_collection_between_timestamps(
         start_timestamp,
         end_timestamp,
-        cols,
-        pollutants,
+        cols+["temperature","reading_id"],
+        pollutants+["nox_as_no2", "so2"],
         "defra",
         "defra_station",
         "station_code",
         "station_location",
     )
+    aston_feature_collection = get_feature_collection_between_timestamps(
+        start_timestamp,
+        end_timestamp,
+        cols,
+        pollutants,
+        "aston",
+        "aston_sensor",
+        "sensor_id",
+        "sensor_location",
+    )
 
-    if feature_collection["features"] is None:
+    if defra_feature_collection["features"] is None and aston_feature_collection["features"] is None:
         return "No sensor readings were found for this timeframe."
-    df = gpd.GeoDataFrame.from_features(feature_collection)
+    defra_df = gpd.GeoDataFrame.from_features(defra_feature_collection)
+    aston_df = gpd.GeoDataFrame.from_features(aston_feature_collection)
+    df = pd.concat([defra_df, aston_df])
+    pollutants = pollutants + ["nox_as_no2", "so2"] # todo this is an ugly way to handle different pollutant cols
     df = df[["timestamp", *pollutants]]
     df["timestamp"] = pd.to_datetime(
         df["timestamp"], utc=True, format="%Y-%m-%dT%H:%M:%S%z"
@@ -149,6 +171,7 @@ def get_chart_format(days, cols, pollutants):
                 "%H:%M",
             ),
         }
+        
     if int(days) > 30:
         # grouping by month
         return group_df(df, "M", "%B %Y")
@@ -169,6 +192,7 @@ def group_df(df, period, timestamp_format):
     g = df.set_index("timestamp")
     g = g.resample(period).mean()
     g.index = g.index.strftime(timestamp_format)
+    g = g.ffill()
     return g.reset_index().to_dict(orient="records")
 
 

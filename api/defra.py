@@ -79,12 +79,13 @@ def fetch_defra_stations():
     openair = get_openair()
     rpy2.robjects.pandas2ri.activate()
     meta_df = rpy2py(openair.importMeta(source="aurn",  all = True))
-    birmingham_stations = meta_df[meta_df['local_authority'] == 'Birmingham'].groupby('code').first().reset_index()
+    # birmingham_stations = meta_df[meta_df['local_authority'] == 'Birmingham'].groupby('code').first().reset_index()
+    west_mids_stations = meta_df[meta_df['zone'] == 'West Midlands'].groupby('code').first().reset_index()
     # TODO combine this with fetch_aston_readings in aston.py
     conn = get_db()
     cursor = conn.cursor()
     try:
-        for _, row in birmingham_stations.iterrows():
+        for _, row in west_mids_stations.iterrows():
             # add sensor if not already in db
             cursor.execute(
                 """
