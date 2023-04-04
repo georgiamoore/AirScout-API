@@ -110,15 +110,15 @@ def fetch_aston_readings(start_date, end_date):
 
         cols = {
             "datetime_UTC": "timestamp",
-            "O3mean": "o3",
-            "NOmean": "no",
-            "NO2mean": "no2",
-            "particulatePM1mean": "pm1",
-            "particulatePM10mean": "pm10",
-            "particulatePM2.5mean": "pm2.5",
-            "ambPressuremean": "pressure",
-            "ambHumiditymean": "humidity",
-            "ambTempCmean": "temperature",
+            "O3_mean": "o3",
+            "NO_mean": "no",
+            "NO2_mean": "no2",
+            "particulatePM1_mean": "pm1",
+            "particulatePM10_mean": "pm10",
+            "particulatePM2.5_mean": "pm2.5",
+            "ambPressure_mean": "pressure",
+            "ambHumidity_mean": "humidity",
+            "ambTempC_mean": "temperature",
         }
         return convert_df_to_db_format(df, conn, cursor, "public.aston", cols)
     return Response(
