@@ -164,7 +164,7 @@ class Aston(Resource):
 @api.route("/daqi")
 class DAQI(Resource):
     def get(self):
-        return get_defra_daqi()
+        return jsonify(get_defra_daqi())
 
 
 @api.route("/defra")
