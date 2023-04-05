@@ -12,26 +12,61 @@ from .aston import *
 from .defra import *
 from config import config
 import datetime
+from datetime import timezone
+from apscheduler.schedulers.background import BackgroundScheduler
+
 
 year = datetime.date.today().year
 load_dotenv()
 
 
+def create_scheduler(app):
+    def daily_fetch():
+        with app.app_context():
+            print(
+                "[%s] Updating Aston and DEFRA data"
+                % datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            )
+            end_timestamp = datetime.datetime.now().strftime("%d-%m-%Y")
+            start_timestamp = (
+                datetime.datetime.now() - datetime.timedelta(1)
+            ).strftime("%d-%m-%Y")
+            fetch_aston_readings(start_timestamp, end_timestamp)
+            fetch_defra_readings([year, year + 1])
+            # TODO add case for no new readings - rerun job in 1 hour
+
+    sched = BackgroundScheduler(daemon=True)
+    # should run daily at 00:05
+    sched.add_job(
+        daily_fetch,
+        trigger="cron",
+        hour="00",
+        minute="05",
+        next_run_time=datetime.datetime.now(tz=timezone.utc),
+    )
+    sched.start()
+
+
 def create_app(app_environment=None):
     if app_environment is None:
         app = Flask(__name__)
-        app.config.from_object(config[os.getenv("FLASK_ENV", "dev")])
+        with app.app_context():
+            app.config.from_object(config[os.getenv("FLASK_ENV", "dev")])
     else:
         app = Flask(__name__)
-        app.config.from_object(config[app_environment])
-    CORS(app)
-    from .db import init_app
+        with app.app_context():
+            app.config.from_object(config[app_environment])
 
-    init_app(app)
-    api = Api(
-        app, version="1.0", title="Air Quality API", description="Air Quality API"
-    )
-    app.config.SWAGGER_UI_DOC_EXPANSION = "list"
+    with app.app_context():
+        CORS(app)
+        from .db import init_app
+
+        init_app(app)
+        api = Api(
+            app, version="1.0", title="Air Quality API", description="Air Quality API"
+        )
+        app.config.SWAGGER_UI_DOC_EXPANSION = "list"
+        create_scheduler(app)
     return app, api
 
 
@@ -125,11 +160,13 @@ class Aston(Resource):
             start_timestamp = start_timestamp.strftime("%d-%m-%Y")
         return fetch_aston_readings(start_timestamp, end_timestamp)
 
+
 @api.route("/daqi")
 class DAQI(Resource):
     def get(self):
         return get_defra_daqi()
-    
+
+
 @api.route("/defra")
 class DEFRA(Resource):
     # todo should days be restricted to 1 day/week/month/year?
@@ -222,7 +259,6 @@ class Stats(Resource):
             "timestamp",
             # "windspeed",
             # "wind_direction",
-            
         ]
         return get_chart_format(days, cols, pollutants)
 
@@ -230,14 +266,14 @@ class Stats(Resource):
 # TODO made obsolete after openair package change
 @api.route("/rebuild_defra")
 class Utility(Resource):
-#     # WIP utility route for recreating defra db
-#     def get(self):
-#         sites = ["BIRR", "BMLD", "BOLD"]  # default settings
+    #     # WIP utility route for recreating defra db
+    #     def get(self):
+    #         sites = ["BIRR", "BMLD", "BOLD"]  # default settings
 
-#         args = request.args
-#         if len(args.getlist("sites")) > 0:
-#             sites = args.getlist("sites")
+    #         args = request.args
+    #         if len(args.getlist("sites")) > 0:
+    #             sites = args.getlist("sites")
 
-#         return fetch_defra_readings(sites, range(year - 1, year + 1))
+    #         return fetch_defra_readings(sites, range(year - 1, year + 1))
     def put(self):
         return fetch_defra_stations()
