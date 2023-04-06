@@ -115,7 +115,11 @@ def get_past_48_hours():
         )
         end_timestamp = end_timestamp.strftime("%Y-%m-%d %H:%M:%S%z")
         cursor.execute(
-            "SELECT * FROM public.defra WHERE timestamp between timestamp '%s' and timestamp '%s'"
+            """
+            SELECT public.defra.*, public.defra_station.station_name FROM public.defra 
+            JOIN public.defra_station ON public.defra_station.station_code = public.defra.station_code 
+            WHERE timestamp between timestamp '%s' and timestamp '%s'
+            """
             % (start_timestamp, end_timestamp)
         )
         df = pd.DataFrame(cursor.fetchall())
@@ -143,11 +147,41 @@ def get_daqi_by_pollutant():
     station_dfs = [x for _, x in df.groupby("station_code")]
 
     pollutants = {
-        "pm10": {"mean": 0, "daqi": 0, "station": "", "measurement_period": ""},
-        "pm2.5": {"mean": 0, "daqi": 0, "station": "", "measurement_period": ""},
-        "o3": {"mean": 0, "daqi": 0, "station": "", "measurement_period": ""},
-        "no2": {"mean": 0, "daqi": 0, "station": "", "measurement_period": ""},
-        "so2": {"mean": 0, "daqi": 0, "station": "", "measurement_period": ""},
+        "pm10": {
+            "mean": 0,
+            "daqi": 0,
+            "station_code": "",
+            "station_name": "",
+            "measurement_period": "",
+        },
+        "pm2.5": {
+            "mean": 0,
+            "daqi": 0,
+            "station_code": "",
+            "station_name": "",
+            "measurement_period": "",
+        },
+        "o3": {
+            "mean": 0,
+            "daqi": 0,
+            "station_code": "",
+            "station_name": "",
+            "measurement_period": "",
+        },
+        "no2": {
+            "mean": 0,
+            "daqi": 0,
+            "station_code": "",
+            "station_name": "",
+            "measurement_period": "",
+        },
+        "so2": {
+            "mean": 0,
+            "daqi": 0,
+            "station_code": "",
+            "station_name": "",
+            "measurement_period": "",
+        },
     }
 
     # for each station, generates pollutant mean values for relevant time period
@@ -170,8 +204,11 @@ def get_daqi_by_pollutant():
                         pollutants[pollutant]["daqi"] = get_daqi_mapping(
                             pollutant, mean
                         )
-                        pollutants[pollutant]["station"] = station_df[
+                        pollutants[pollutant]["station_code"] = station_df[
                             "station_code"
+                        ].iloc[0]
+                        pollutants[pollutant]["station_name"] = station_df[
+                            "station_name"
                         ].iloc[0]
                         pollutants[pollutant][
                             "measurement_period"
@@ -202,18 +239,21 @@ def get_daqi_by_station():
             station_info.append(
                 {
                     station_df["station_code"].iloc[0]: {
-                        key: value
-                        for pollutant in pollutants
-                        for key, value in {
-                            f"{pollutant}_mean": means[pollutant],
-                            f"{pollutant}_daqi": get_daqi_mapping(
-                                pollutant, means[pollutant]
-                            ),
-                        }.items()
-                        if not math.isnan(value)
-                        and value != -1  # excludes pollutant if no data found
-                    }
-                }
+                        **{
+                            key: value
+                            for pollutant in pollutants
+                            for key, value in {
+                                f"{pollutant}_mean": means[pollutant],
+                                f"{pollutant}_daqi": get_daqi_mapping(
+                                    pollutant, means[pollutant]
+                                ),
+                            }.items()
+                            if not math.isnan(value)
+                            and value != -1  # excludes pollutant if no data found
+                        },
+                        "station_name": station_df["station_name"].iloc[0],
+                    },
+                },
             )
 
     return station_info
