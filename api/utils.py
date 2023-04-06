@@ -197,8 +197,9 @@ def group_df(df, period, timestamp_format):
     g = g.resample(period).mean()
     g.index = g.index.strftime(timestamp_format)
     g = g.ffill()
-    return g.reset_index().to_dict(orient="records")
-
+    result = g.reset_index().apply(lambda x : x.dropna().to_dict(),axis=1)
+    result = [{k: v for k, v in d.items() if v != 0} for d in result.tolist()] # removing 0 values
+    return result
 
 # used to get a full day of data (DEFRA only updates at the end of a day)
 def get_start_of_prev_day(end_timestamp):
