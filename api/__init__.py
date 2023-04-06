@@ -163,8 +163,21 @@ class Aston(Resource):
 
 @api.route("/daqi")
 class DAQI(Resource):
+    @api.doc(
+        params={
+            "station": {
+                "description": "Used to return individual station DAQI information. By default, this route returns the highest DAQI value for each pollutant.",
+                "in": "query",
+                "type": "boolean",
+                "example": "true",
+            }
+        }
+    )
     def get(self):
-        return jsonify(get_defra_daqi())
+        if request.args.get("station") == "true":
+            return jsonify(get_daqi_by_station()) # alternate route for individual station info
+        else:
+            return jsonify(get_daqi_by_pollutant()) # default route (for daqi info component)
 
 
 @api.route("/defra")

@@ -8,6 +8,7 @@ import rpy2
 from rpy2.robjects.pandas2ri import rpy2py
 import psycopg2
 
+
 # from https://uk-air.defra.gov.uk/air-pollution/daqi?view=more-info&pollutant=pm25#pollutant
 daqi_ranges = {
     "pm10": [
@@ -72,25 +73,44 @@ daqi_ranges = {
     ],
 }
 
+daqi_measurement_periods = {
+    "pm2.5": "24H",
+    "pm10": "24H",
+    "o3": "8H",
+    "no2": "1H",
+    "so2": "15M",
+}
+
 # matches calculated pollutant mean value with DAQI index
 def get_daqi_mapping(pollutant, value):
     for entry in daqi_ranges[pollutant]:
         if not math.isnan(value):
             if int(value) in entry["range"]:
-                print(entry["range"])
                 return entry["daqi"]
     return -1
 
 
-def get_defra_daqi():
+def generate_pollutant_means(df):
+    means = {}
+    for pollutant, measurement_period in daqi_measurement_periods.items():
+        means[pollutant] = (
+            df.resample(measurement_period, on="timestamp")
+            .agg({pollutant: "mean"})
+            .mean()
+            .values[0]
+        )
+    return means
+
+
+def get_past_48_hours():
     conn = get_db()
     cursor = conn.cursor()
     try:
         cursor.execute("SELECT station_code FROM public.defra_station")
 
-        # get past 24 hours of data
+        # get past 48 hours of data
         end_timestamp = datetime.datetime.now(tz=datetime.timezone.utc)
-        start_timestamp = (end_timestamp - datetime.timedelta(1)).strftime(
+        start_timestamp = (end_timestamp - datetime.timedelta(2)).strftime(
             "%Y-%m-%d %H:%M:%S%z"
         )
         end_timestamp = end_timestamp.strftime("%Y-%m-%d %H:%M:%S%z")
@@ -99,7 +119,13 @@ def get_defra_daqi():
             % (start_timestamp, end_timestamp)
         )
         df = pd.DataFrame(cursor.fetchall())
+        if df.empty:
+            # TODO set function to 24 hrs, attempt rerun here with 48 hrs
+            return "No data found for this time period"
+
         df.columns = [x.name for x in cursor.description]
+        cursor.close()
+        return df
 
     except (Exception, psycopg2.DatabaseError) as error:
         conn.rollback()
@@ -107,7 +133,57 @@ def get_defra_daqi():
         # TODO fix error return format -> use Flask response
         return "Error: %s" % error
 
-    cursor.close()
+
+def get_daqi_by_pollutant():
+    df = get_past_48_hours()
+    if type(df) == str or df.empty:
+        return "No data found for this time period"
+
+    # filter by station, creating a new df for each
+    station_dfs = [x for _, x in df.groupby("station_code")]
+
+    pollutants = {
+        "pm10": {"mean": 0, "daqi": 0, "station": "", "measurement_period": ""},
+        "pm2.5": {"mean": 0, "daqi": 0, "station": "", "measurement_period": ""},
+        "o3": {"mean": 0, "daqi": 0, "station": "", "measurement_period": ""},
+        "no2": {"mean": 0, "daqi": 0, "station": "", "measurement_period": ""},
+        "so2": {"mean": 0, "daqi": 0, "station": "", "measurement_period": ""},
+    }
+
+    # for each station, generates pollutant mean values for relevant time period
+    # then maps those mean values to DAQI
+    # keeps track of highest mean/daqi value and corresponding station information
+    for station_df in station_dfs:
+        means = generate_pollutant_means(station_df)
+
+        if not all(
+            value is None or value == -1 for value in means.values()
+        ):  # excludes station if no data found
+            for pollutant, mean in means.items():
+                if (
+                    not math.isnan(mean) and mean != -1
+                ):  # excludes pollutant if no data found
+                    if (
+                        mean > pollutants[pollutant]["mean"]
+                    ):  # finding highest mean value for each pollutant
+                        pollutants[pollutant]["mean"] = mean
+                        pollutants[pollutant]["daqi"] = get_daqi_mapping(
+                            pollutant, mean
+                        )
+                        pollutants[pollutant]["station"] = station_df[
+                            "station_code"
+                        ].iloc[0]
+                        pollutants[pollutant][
+                            "measurement_period"
+                        ] = daqi_measurement_periods[pollutant]
+    return pollutants
+
+
+def get_daqi_by_station():
+    df = get_past_48_hours()
+    if type(df) == str or df.empty:
+        return "No data found for this time period"
+
     # filter by station, creating a new df for each
     station_dfs = [x for _, x in df.groupby("station_code")]
 
@@ -117,37 +193,8 @@ def get_defra_daqi():
     # adds mean & DAQI for each pollutant to station object
     # adds station object to station_info array
     for station_df in station_dfs:
-        # PM2.5 & PM10 24 hour mean
-        pm25_mean = station_df["pm2.5"].mean()
-        pm10_mean = station_df["pm10"].mean()
-
-        # O3 8 hour mean
-        o3_mean = (
-            station_df.resample("8H", on="timestamp")
-            .agg({"o3": "mean"})
-            .mean()
-            .values[0]
-        )
-
-        # NO2 hourly mean
-        no2_mean = (
-            station_df.resample("1H", on="timestamp")
-            .agg({"no2": "mean"})
-            .mean()
-            .values[0]
-        )
-
-        # SO2 15 min mean
-        so2_mean = (
-            station_df.resample("15M", on="timestamp")
-            .agg({"so2": "mean"})
-            .mean()
-            .values[0]
-        )
-
-        # TODO this should be tidied up to map object based on generic pollutant array
-        # but it is 5th April and there are more important things to do right now !!!!
-        means = [pm25_mean, pm10_mean, o3_mean, no2_mean, so2_mean]
+        pollutants = ["pm2.5", "pm10", "o3", "no2", "so2"]
+        means = generate_pollutant_means(station_df)
 
         if not all(
             value is None or value == -1 for value in means
@@ -156,17 +203,12 @@ def get_defra_daqi():
                 {
                     station_df["station_code"].iloc[0]: {
                         key: value
+                        for pollutant in pollutants
                         for key, value in {
-                            "pm2.5_mean": pm25_mean,
-                            "pm2.5_daqi": get_daqi_mapping("pm2.5", pm25_mean),
-                            "pm10_mean": pm10_mean,
-                            "pm10_daqi": get_daqi_mapping("pm10", pm10_mean),
-                            "o3_mean": o3_mean,
-                            "o3_daqi": get_daqi_mapping("o3", o3_mean),
-                            "no2_mean": no2_mean,
-                            "no2_daqi": get_daqi_mapping("no2", no2_mean),
-                            "so2_mean": so2_mean,
-                            "so2_daqi": get_daqi_mapping("so2", so2_mean),
+                            f"{pollutant}_mean": means[pollutant],
+                            f"{pollutant}_daqi": get_daqi_mapping(
+                                pollutant, means[pollutant]
+                            ),
                         }.items()
                         if not math.isnan(value)
                         and value != -1  # excludes pollutant if no data found
