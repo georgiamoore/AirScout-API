@@ -273,7 +273,7 @@ class Stats(Resource):
             # "windspeed",
             # "wind_direction",
         ]
-        return get_chart_format(days, cols, pollutants)
+        return jsonify(get_chart_format(days, cols, pollutants))
 
 
 # TODO made obsolete after openair package change
