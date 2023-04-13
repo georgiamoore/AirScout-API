@@ -1,30 +1,17 @@
 import datetime
-import numpy as np
 import psycopg2
 import psycopg2.extras as extras
 from .db import get_db
 import geopandas as gpd
 import pandas as pd
-from rpy2.robjects.packages import importr, quiet_require
-from rpy2.rinterface_lib.embedded import RRuntimeError
-from flask import Response, g, jsonify
 from flask import current_app
 
 
-def get_openair():
-    if "openair" not in g:
-        utils = importr("utils")
-        try:
-            g.openair = importr("openair")
-        except RRuntimeError:
-            utils.chooseCRANmirror(ind=1)
-            utils.install_packages("openair")
-            g.openair = importr("openair")
-    return g.openair
-
-
 def convert_df_to_db_format(df, conn, cursor, table_name, renamed_cols):
-    print("[%s] Updating %s." % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), table_name))
+    print(
+        "[%s] Updating %s."
+        % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), table_name)
+    )
     df = df.rename(columns=renamed_cols)
     # removing columns that don't exist in db
     cursor.execute("SELECT * FROM %s LIMIT 0" % (table_name,))
@@ -47,9 +34,11 @@ def convert_df_to_db_format(df, conn, cursor, table_name, renamed_cols):
         # print (cursor.rowcount)
         print(
             "[%s] %s rows inserted into %s."
-            % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            updated_row_count - original_row_count,
-            table_name)
+            % (
+                datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                updated_row_count - original_row_count,
+                table_name,
+            )
         )
     except (Exception, psycopg2.DatabaseError) as error:
         conn.rollback()

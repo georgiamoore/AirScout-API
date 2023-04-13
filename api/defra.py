@@ -3,11 +3,10 @@ import math
 import sys
 import pandas as pd
 from .db import get_db
-from .utils import convert_df_to_db_format, get_openair
-import rpy2
-from rpy2.robjects.pandas2ri import rpy2py
+from .utils import convert_df_to_db_format
 import psycopg2
-
+from pyaurn import importAURN, importMeta
+import warnings
 
 # from https://uk-air.defra.gov.uk/air-pollution/daqi?view=more-info&pollutant=pm25#pollutant
 daqi_ranges = {
@@ -260,22 +259,20 @@ def get_daqi_by_station():
 
 
 def fetch_defra_readings(years):
-    openair = get_openair()
     conn = get_db()
     cursor = conn.cursor()
     try:
         cursor.execute("SELECT station_code FROM public.defra_station")
         stations = [s[0] for s in cursor.fetchall()]
-        rpy2.robjects.pandas2ri.activate()
-        results = rpy2py(
-            openair.importAURN(
-                site=stations,
-                year=years,
-                data_type="hourly",
-                pollutant="all",
-            )
+        warnings.filterwarnings(
+            "ignore",
+            message="Some data files were not able to be downloaded, check resulting DataFrame carefully",
         )
-        # results = results.where(pd.notnull(results), None)
+        warnings.filterwarnings("ignore", message="Resulting DataFrame is empty")
+        all_station_dfs = list(
+            map(lambda site: importAURN(site=site, years=years), stations)
+        )
+        results = pd.concat(all_station_dfs)
 
         if len(results.index) > 0:
             return convert_df_to_db_format(
@@ -286,10 +283,16 @@ def fetch_defra_readings(years):
                 {
                     "date": "timestamp",
                     "code": "station_code",
-                    "nox": "nox_as_no2",
+                    "O3": "o3",
+                    "NO": "no",
+                    "NO2": "no2",
+                    "NOXasNO2": "nox_as_no2",
+                    "SO2": "so2",
+                    "PM10": "pm10",
+                    "PM2.5": "pm2.5",
                     "wd": "wind_direction",
                     "ws": "windspeed",
-                    "air_temp": "temperature",
+                    "temp": "temperature",
                 },
             )
         else:
@@ -306,16 +309,15 @@ def fetch_defra_readings(years):
 
 
 def fetch_defra_stations():
-    openair = get_openair()
-    rpy2.robjects.pandas2ri.activate()
-    meta_df = rpy2py(openair.importMeta(source="aurn", all=True))
-    # birmingham_stations = meta_df[meta_df['local_authority'] == 'Birmingham'].groupby('code').first().reset_index()
+    meta_df = importMeta(source="aurn")
+    # birmingham_stations = meta_df[meta_df['local_authority'] == 'Birmingham'].groupby('site_id').first().reset_index()
     west_mids_stations = (
         meta_df[meta_df["zone"] == "West Midlands"]
-        .groupby("code")
+        .groupby("site_id")
         .first()
         .reset_index()
     )
+
     # TODO combine this with fetch_aston_readings in aston.py
     conn = get_db()
     cursor = conn.cursor()
@@ -326,15 +328,15 @@ def fetch_defra_stations():
                 """
             SELECT EXISTS(SELECT 1 FROM public.defra_station WHERE station_code = %s)
             """,
-                (row["code"],),
+                (row["site_id"],),
             )
             exists = cursor.fetchone()[0]
             if not exists:
                 cursor.execute(
                     "INSERT INTO public.defra_station (station_code, station_name, station_location) VALUES (%s, %s, ST_MakePoint(%s, %s))",
                     (
-                        row["code"],
-                        row["site"],
+                        row["site_id"],
+                        row["site_name"],
                         row["longitude"],
                         row["latitude"],
                     ),
