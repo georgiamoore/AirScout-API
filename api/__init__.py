@@ -48,6 +48,14 @@ def create_scheduler(app):
         minute="30",
         next_run_time=datetime.datetime.now(tz=timezone.utc),
     )
+    # should run daily at 13:00
+    sched.add_job(
+        daily_fetch,
+        trigger="cron",
+        hour="13",
+        minute="00",
+        
+    )
     sched.start()
 
 

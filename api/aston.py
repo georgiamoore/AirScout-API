@@ -1,3 +1,4 @@
+import datetime
 import psycopg2
 import requests
 import os
@@ -121,6 +122,10 @@ def fetch_aston_readings(start_date, end_date):
             "ambTempC_mean": "temperature",
         }
         return convert_df_to_db_format(df, conn, cursor, "public.aston", cols)
+    print(
+        "[%s] No Aston sensor readings found."
+        % datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    )
     return Response(
         "No sensor readings found for this timeframe.",
         status=404,

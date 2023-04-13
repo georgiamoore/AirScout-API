@@ -293,6 +293,10 @@ def fetch_defra_readings(years):
                 },
             )
         else:
+            print(
+                "[%s] No Defra sensor readings found."
+                % datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            )
             return "No new sensor readings were found."
     except (Exception, psycopg2.DatabaseError) as error:
         conn.rollback()

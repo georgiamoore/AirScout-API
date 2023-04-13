@@ -9,23 +9,30 @@ from rpy2.robjects.packages import importr, quiet_require
 from rpy2.rinterface_lib.embedded import RRuntimeError
 from flask import Response, g, jsonify
 from flask import current_app
+
+
 def get_openair():
     if "openair" not in g:
-        utils = importr('utils')
+        utils = importr("utils")
         try:
-            g.openair = importr('openair')
+            g.openair = importr("openair")
         except RRuntimeError:
             utils.chooseCRANmirror(ind=1)
-            utils.install_packages('openair')
-            g.openair = importr('openair')
+            utils.install_packages("openair")
+            g.openair = importr("openair")
     return g.openair
 
+
 def convert_df_to_db_format(df, conn, cursor, table_name, renamed_cols):
+    print("[%s] Updating %s." % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), table_name))
     df = df.rename(columns=renamed_cols)
     # removing columns that don't exist in db
     cursor.execute("SELECT * FROM %s LIMIT 0" % (table_name,))
     db_cols = [desc[0] for desc in cursor.description]
     df = df[df.columns.intersection(db_cols)]
+    cursor.execute("SELECT * FROM %s" % (table_name,))
+    original_row_count = cursor.rowcount
+    # print (cursor.rowcount)
 
     # convert df to list of tuples for bulk insert to db
     tuples = [tuple(x) for x in df.to_numpy()]
@@ -35,6 +42,15 @@ def convert_df_to_db_format(df, conn, cursor, table_name, renamed_cols):
     try:
         extras.execute_values(cursor, query, tuples)
         conn.commit()
+        cursor.execute("SELECT * FROM %s" % (table_name,))
+        updated_row_count = cursor.rowcount
+        # print (cursor.rowcount)
+        print(
+            "[%s] %s rows inserted into %s."
+            % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            updated_row_count - original_row_count,
+            table_name)
+        )
     except (Exception, psycopg2.DatabaseError) as error:
         conn.rollback()
         cursor.close()
@@ -70,20 +86,20 @@ def get_feature_collection_between_timestamps(
                 FROM (public.%s d inner join %s s using (%s) ) As ds 
                 WHERE ds.timestamp BETWEEN timestamp '%s' and timestamp '%s'   ) As f )  As fc;
             """ % (
-                sensor_location_column,
-                ", ".join([columns_str, pollutants_str]),
-                reading_table,
-                sensor_table,
-                sensor_pkey_column,
-                start_timestamp,
-                end_timestamp,
-            )
+        sensor_location_column,
+        ", ".join([columns_str, pollutants_str]),
+        reading_table,
+        sensor_table,
+        sensor_pkey_column,
+        start_timestamp,
+        end_timestamp,
+    )
     try:
         conn = get_db()
         cursor = conn.cursor()
         cursor.execute(query)
     except psycopg2.InterfaceError as err:
-        print (err)
+        print(err)
         # conn = get_db()
         conn = psycopg2.connect(
             host=current_app.config["HOST"],
@@ -114,8 +130,8 @@ def get_chart_format(days, cols, pollutants):
     defra_feature_collection = get_feature_collection_between_timestamps(
         start_timestamp,
         end_timestamp,
-        cols+["temperature","reading_id"],
-        pollutants+["nox_as_no2", "so2"],
+        cols + ["temperature", "reading_id"],
+        pollutants + ["nox_as_no2", "so2"],
         "defra",
         "defra_station",
         "station_code",
@@ -132,12 +148,18 @@ def get_chart_format(days, cols, pollutants):
         "sensor_location",
     )
 
-    if defra_feature_collection["features"] is None and aston_feature_collection["features"] is None:
+    if (
+        defra_feature_collection["features"] is None
+        and aston_feature_collection["features"] is None
+    ):
         return "No sensor readings were found for this timeframe."
     defra_df = gpd.GeoDataFrame.from_features(defra_feature_collection)
     aston_df = gpd.GeoDataFrame.from_features(aston_feature_collection)
     df = pd.concat([defra_df, aston_df])
-    pollutants = pollutants + ["nox_as_no2", "so2"] # todo this is an ugly way to handle different pollutant cols
+    pollutants = pollutants + [
+        "nox_as_no2",
+        "so2",
+    ]  # todo this is an ugly way to handle different pollutant cols
     df = df[["timestamp", *pollutants]]
     df["timestamp"] = pd.to_datetime(
         df["timestamp"], utc=True, format="%Y-%m-%dT%H:%M:%S%z"
@@ -175,7 +197,7 @@ def get_chart_format(days, cols, pollutants):
                 "%H:%M",
             ),
         }
-        
+
     if int(days) > 30:
         # grouping by month
         return group_df(df, "M", "%B %Y")
@@ -197,12 +219,14 @@ def group_df(df, period, timestamp_format):
     g = g.resample(period).mean()
     g.index = g.index.strftime(timestamp_format)
     g = g.ffill()
-    result = g.reset_index().apply(lambda x : x.dropna().to_dict(),axis=1)
-    result = [{k: v for k, v in d.items() if v != 0} for d in result.tolist()] # removing 0 values
+    result = g.reset_index().apply(lambda x: x.dropna().to_dict(), axis=1)
+    result = [
+        {k: v for k, v in d.items() if v != 0} for d in result.tolist()
+    ]  # removing 0 values
     return result
+
 
 # used to get a full day of data (DEFRA only updates at the end of a day)
 def get_start_of_prev_day(end_timestamp):
     day_start = end_timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
     return day_start - datetime.timedelta(hours=24)
-
