@@ -6,7 +6,6 @@ import geopandas as gpd
 import pandas as pd
 from flask import current_app
 
-
 def convert_df_to_db_format(df, conn, cursor, table_name, renamed_cols):
     print(
         "[%s] Updating %s."

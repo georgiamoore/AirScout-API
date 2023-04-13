@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, make_response, request
+from flask import Flask, jsonify, request
 import os
 from flask_restx import Api, Resource
 from flask_cors import CORS
@@ -54,7 +54,6 @@ def create_scheduler(app):
         trigger="cron",
         hour="13",
         minute="00",
-        
     )
     sched.start()
 
@@ -187,9 +186,13 @@ class DAQI(Resource):
     )
     def get(self):
         if request.args.get("station") == "true":
-            return jsonify(get_daqi_by_station()) # alternate route for individual station info
+            return jsonify(
+                get_daqi_by_station()
+            )  # alternate route for individual station info
         else:
-            return jsonify(get_daqi_by_pollutant()) # default route (for daqi info component)
+            return jsonify(
+                get_daqi_by_pollutant()
+            )  # default route (for daqi info component)
 
 
 @api.route("/defra")
@@ -288,17 +291,8 @@ class Stats(Resource):
         return jsonify(get_chart_format(days, cols, pollutants))
 
 
-# TODO made obsolete after openair package change
 @api.route("/rebuild_defra")
 class Utility(Resource):
-    #     # WIP utility route for recreating defra db
-    #     def get(self):
-    #         sites = ["BIRR", "BMLD", "BOLD"]  # default settings
-
-    #         args = request.args
-    #         if len(args.getlist("sites")) > 0:
-    #             sites = args.getlist("sites")
-
-    #         return fetch_defra_readings(sites, range(year - 1, year + 1))
+    # WIP utility route for recreating defra db
     def put(self):
         return fetch_defra_stations()
