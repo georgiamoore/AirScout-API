@@ -269,6 +269,7 @@ def fetch_defra_readings(years):
             message="Some data files were not able to be downloaded, check resulting DataFrame carefully",
         )
         warnings.filterwarnings("ignore", message="Resulting DataFrame is empty")
+        print(importAURN(site="BIRR", years=years))
         all_station_dfs = list(
             map(lambda site: importAURN(site=site, years=years), stations)
         )

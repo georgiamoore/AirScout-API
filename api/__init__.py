@@ -39,23 +39,24 @@ def create_scheduler(app):
                 % datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             )
 
-    sched = BackgroundScheduler(daemon=True)
-    # should run daily at 00:30
-    sched.add_job(
-        daily_fetch,
-        trigger="cron",
-        hour="00",
-        minute="30",
-        next_run_time=datetime.datetime.now(tz=timezone.utc),
-    )
-    # should run daily at 13:00
-    sched.add_job(
-        daily_fetch,
-        trigger="cron",
-        hour="13",
-        minute="00",
-    )
-    sched.start()
+    if (os.getenv("FLASK_ENV") != "test"):
+        sched = BackgroundScheduler(daemon=True)
+        # should run daily at 00:30
+        sched.add_job(
+            daily_fetch,
+            trigger="cron",
+            hour="00",
+            minute="30",
+            next_run_time=datetime.datetime.now(tz=timezone.utc),
+        )
+        # should run daily at 13:00
+        sched.add_job(
+            daily_fetch,
+            trigger="cron",
+            hour="13",
+            minute="00",
+        )
+        sched.start()
 
 
 def create_app(app_environment=None):
@@ -79,7 +80,6 @@ def create_app(app_environment=None):
         app.config.SWAGGER_UI_DOC_EXPANSION = "list"
         create_scheduler(app)
     return app, api
-
 
 app, api = create_app(os.getenv("FLASK_ENV", "dev"))
 # TODO add api models for responses - see https://flask-restx.readthedocs.io/en/latest/quickstart.html#data-formatting
@@ -240,7 +240,6 @@ class DEFRA(Resource):
             start_timestamp = get_start_of_prev_day(end_timestamp)
         else:
             start_timestamp = end_timestamp - datetime.timedelta(int(days))
-        print(start_timestamp, end_timestamp)
         return {
             "source": "defra",
             "data": get_feature_collection_between_timestamps(

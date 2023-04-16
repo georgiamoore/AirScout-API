@@ -20,6 +20,7 @@ def fetch_aston_readings(start_date, end_date):
     )
     response = requests.get(url)
     response = response.json()
+    print(response)
 
     if len(response) > 0:
         # TODO combine this with add_defra_stations in defra.py

@@ -9,8 +9,10 @@ import os
 
 class ProdConfig:
     # Database configuration
-    # API_TOKEN = os.environ.get('PROD_MARKET_STACK_API_KEY_SECRET')
     HOST = os.getenv("POSTGRES_HOST")
+    DATABASE = os.getenv("POSTGRES_DATABASE")
+    USER = os.getenv("POSTGRES_USER")
+    PASSWORD = os.getenv("POSTGRES_PASSWORD")
 
 
 class DevConfig:
@@ -23,7 +25,10 @@ class DevConfig:
 
 class TestConfig:
     # Database configuration
-    HOST = os.getenv("POSTGRES_HOST")
+    HOST = os.getenv("TEST_POSTGRES_HOST")
+    DATABASE = os.getenv("TEST_POSTGRES_DATABASE")
+    USER = os.getenv("TEST_POSTGRES_USER")
+    PASSWORD = os.getenv("TEST_POSTGRES_PASSWORD")
 
 
 config = {"dev": DevConfig, "test": TestConfig, "prod": ProdConfig}
