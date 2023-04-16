@@ -63,27 +63,19 @@ def get_feature_collection_between_timestamps(
 ):
     columns_str = ", ".join(['ds."' + c + '"' for c in columns])
     pollutants_str = ", ".join(['ds."' + p + '"' for p in pollutants])
-    query = """
-            SELECT row_to_json(fc) FROM 
-            ( SELECT 'FeatureCollection' As type, array_to_json(array_agg(f)) As features FROM
-                ( SELECT 'Feature' As type, 
-                    ST_AsGeoJSON(ds.%s)::json As geometry, 
-                    (
-                        select row_to_json(t) 
-                        from (select %s) t
-                    )
-                    As properties
-                FROM (public.%s d inner join %s s using (%s) ) As ds 
-                WHERE ds.timestamp BETWEEN timestamp '%s' and timestamp '%s'   ) As f )  As fc;
-            """ % (
-        sensor_location_column,
-        ", ".join([columns_str, pollutants_str]),
-        reading_table,
-        sensor_table,
-        sensor_pkey_column,
-        start_timestamp,
-        end_timestamp,
-    )
+    query = f"""
+        SELECT row_to_json(fc) FROM 
+        ( SELECT 'FeatureCollection' As type, array_to_json(array_agg(f)) As features FROM
+            ( SELECT 'Feature' As type, 
+                ST_AsGeoJSON(ds.{sensor_location_column})::json As geometry, 
+                (
+                    select row_to_json(t) 
+                    from (select {", ".join([columns_str, pollutants_str])}) t
+                )
+                As properties
+            FROM (public.{reading_table} d inner join {sensor_table} s using ({sensor_pkey_column}) ) As ds 
+            WHERE ds.timestamp BETWEEN timestamp '{start_timestamp}' and timestamp '{end_timestamp}'   ) As f )  As fc;
+        """
     try:
         conn = get_db()
         cursor = conn.cursor()
