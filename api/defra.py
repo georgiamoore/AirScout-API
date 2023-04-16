@@ -1,84 +1,12 @@
 import datetime
 import math
-import sys
 import pandas as pd
 from .db import get_db
-from .utils import convert_df_to_db_format
+from .utils import convert_df_to_db_format, daqi_measurement_periods, daqi_ranges
 import psycopg2
 from pyaurn import importAURN, importMeta
 import warnings
 
-# from https://uk-air.defra.gov.uk/air-pollution/daqi?view=more-info&pollutant=pm25#pollutant
-daqi_ranges = {
-    "pm10": [
-        {"range": range(0, 17), "daqi": 1},
-        {"range": range(17, 34), "daqi": 2},
-        {"range": range(34, 51), "daqi": 3},
-        {"range": range(51, 59), "daqi": 4},
-        {"range": range(59, 67), "daqi": 5},
-        {"range": range(67, 76), "daqi": 6},
-        {"range": range(76, 84), "daqi": 7},
-        {"range": range(84, 92), "daqi": 8},
-        {"range": range(92, 101), "daqi": 9},
-        {"range": range(101, sys.maxsize), "daqi": 10},
-    ],
-    "pm2.5": [
-        {"range": range(0, 12), "daqi": 1},
-        {"range": range(12, 24), "daqi": 2},
-        {"range": range(24, 36), "daqi": 3},
-        {"range": range(36, 42), "daqi": 4},
-        {"range": range(42, 48), "daqi": 5},
-        {"range": range(48, 54), "daqi": 6},
-        {"range": range(54, 59), "daqi": 7},
-        {"range": range(59, 65), "daqi": 8},
-        {"range": range(65, 71), "daqi": 9},
-        {"range": range(71, sys.maxsize), "daqi": 10},
-    ],
-    "o3": [
-        {"range": range(0, 34), "daqi": 1},
-        {"range": range(34, 67), "daqi": 2},
-        {"range": range(67, 101), "daqi": 3},
-        {"range": range(101, 121), "daqi": 4},
-        {"range": range(121, 141), "daqi": 5},
-        {"range": range(141, 161), "daqi": 6},
-        {"range": range(161, 188), "daqi": 7},
-        {"range": range(188, 214), "daqi": 8},
-        {"range": range(214, 241), "daqi": 9},
-        {"range": range(241, sys.maxsize), "daqi": 10},
-    ],
-    "no2": [
-        {"range": range(0, 68), "daqi": 1},
-        {"range": range(68, 135), "daqi": 2},
-        {"range": range(135, 201), "daqi": 3},
-        {"range": range(201, 268), "daqi": 4},
-        {"range": range(268, 335), "daqi": 5},
-        {"range": range(335, 401), "daqi": 6},
-        {"range": range(401, 468), "daqi": 7},
-        {"range": range(468, 535), "daqi": 8},
-        {"range": range(535, 601), "daqi": 9},
-        {"range": range(601, sys.maxsize), "daqi": 10},
-    ],
-    "so2": [
-        {"range": range(0, 89), "daqi": 1},
-        {"range": range(89, 178), "daqi": 2},
-        {"range": range(178, 267), "daqi": 3},
-        {"range": range(267, 355), "daqi": 4},
-        {"range": range(355, 444), "daqi": 5},
-        {"range": range(444, 533), "daqi": 6},
-        {"range": range(533, 711), "daqi": 7},
-        {"range": range(711, 888), "daqi": 8},
-        {"range": range(888, 1065), "daqi": 9},
-        {"range": range(1065, sys.maxsize), "daqi": 10},
-    ],
-}
-
-daqi_measurement_periods = {
-    "pm2.5": "24H",
-    "pm10": "24H",
-    "o3": "8H",
-    "no2": "1H",
-    "so2": "15M",
-}
 
 # matches calculated pollutant mean value with DAQI index
 def get_daqi_mapping(pollutant, value):
@@ -101,7 +29,13 @@ def generate_pollutant_means(df):
     return means
 
 
-def get_past_48_hours():
+def get_past_48_hours(demo=False):
+    if demo:
+        defra_table = "defra_demo"
+        # aston_table = "aston_demo"
+    else:
+        defra_table = "defra"
+        # aston_table = "aston"
     conn = get_db()
     cursor = conn.cursor()
     try:
@@ -114,12 +48,11 @@ def get_past_48_hours():
         )
         end_timestamp = end_timestamp.strftime("%Y-%m-%d %H:%M:%S%z")
         cursor.execute(
+            f"""
+            SELECT public.{defra_table}.*, public.defra_station.station_name FROM public.{defra_table} 
+            JOIN public.defra_station ON public.defra_station.station_code = public.{defra_table}.station_code 
+            WHERE timestamp between timestamp '{start_timestamp}' and timestamp '{end_timestamp}'
             """
-            SELECT public.defra.*, public.defra_station.station_name FROM public.defra 
-            JOIN public.defra_station ON public.defra_station.station_code = public.defra.station_code 
-            WHERE timestamp between timestamp '%s' and timestamp '%s'
-            """
-            % (start_timestamp, end_timestamp)
         )
         df = pd.DataFrame(cursor.fetchall())
         if df.empty:
@@ -137,8 +70,8 @@ def get_past_48_hours():
         return "Error: %s" % error
 
 
-def get_daqi_by_pollutant():
-    df = get_past_48_hours()
+def get_daqi_by_pollutant(demo=False):
+    df = get_past_48_hours(demo)
     if type(df) == str or df.empty:
         return "No data found for this time period"
 
@@ -318,7 +251,6 @@ def fetch_defra_stations():
         .reset_index()
     )
 
-    # TODO combine this with fetch_aston_readings in aston.py
     conn = get_db()
     cursor = conn.cursor()
     try:

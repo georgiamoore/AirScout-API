@@ -1,10 +1,12 @@
 import datetime
+import sys
 import psycopg2
 import psycopg2.extras as extras
 from .db import get_db
 import geopandas as gpd
 import pandas as pd
 from flask import current_app
+
 
 def convert_df_to_db_format(df, conn, cursor, table_name, renamed_cols):
     print(
@@ -107,7 +109,13 @@ def get_feature_collection_between_timestamps(
 
 # TODO consider if these should consider the full time period (e.g. all of a month rather than truncated by week)
 # would use end_timestamp.replace(day=1, hour=0, minute=0, second=0, microsecond=0) for start of month
-def get_chart_format(days, cols, pollutants):
+def get_chart_format(days, cols, pollutants, demo=False):
+    if demo:
+        defra_table = "defra_demo"
+        aston_table = "aston_demo"
+    else:
+        defra_table = "defra"
+        aston_table = "aston"
     end_timestamp = datetime.datetime.now(tz=datetime.timezone.utc)
     if days is None:
         start_timestamp = end_timestamp - datetime.timedelta(365)
@@ -120,7 +128,7 @@ def get_chart_format(days, cols, pollutants):
         end_timestamp,
         cols + ["temperature", "reading_id"],
         pollutants + ["nox_as_no2", "so2"],
-        "defra",
+        defra_table,
         "defra_station",
         "station_code",
         "station_location",
@@ -130,7 +138,7 @@ def get_chart_format(days, cols, pollutants):
         end_timestamp,
         cols,
         pollutants,
-        "aston",
+        aston_table,
         "aston_sensor",
         "sensor_id",
         "sensor_location",
@@ -218,3 +226,134 @@ def group_df(df, period, timestamp_format):
 def get_start_of_prev_day(end_timestamp):
     day_start = end_timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
     return day_start - datetime.timedelta(hours=24)
+
+
+def generate_demo_data():
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        tables = ["defra_demo", "aston_demo"]
+        for table in tables:
+            # clear table
+            cursor.execute(f"DELETE FROM {table}")
+
+            # copy past year's data from original table
+            cursor.execute(
+                f"INSERT INTO {table} SELECT * FROM {table[:-5]} WHERE timestamp > now() - interval '1 year'"
+            )
+
+            # get last 30 days of data as a dataframe
+            cursor.execute(
+                f"SELECT * FROM {table} WHERE timestamp > now() - interval '30 days'"
+            )
+            if (
+                table == "defra_demo"
+            ):  # aston uses compound pk so can't use this method as-is
+                # sets o3 values to random values between 121 and 300 (daqi 5-10+, moderate-very high range)
+                cursor.execute(
+                    f"""
+                        WITH r AS (SELECT reading_id, random() * (300-121) + 121 AS rnd FROM {table})
+                        UPDATE {table} AS t
+                        SET o3 = r.rnd
+                        FROM r WHERE r.reading_id = t.reading_id;
+                    """
+                )
+                # sets no2 values to random values between 201 and 601 (daqi 4-9, moderate-high range)
+                cursor.execute(
+                    f"""
+                        WITH r AS (SELECT reading_id, random() * (601-201) + 201 AS rnd FROM {table})
+                        UPDATE {table} AS t
+                        SET no2 = r.rnd
+                        FROM r WHERE r.reading_id = t.reading_id;
+                    """
+                )
+                # sets pm10 values to random values between 1 and 120 (complete range, hopefully interesting interpolation demo)
+                cursor.execute(
+                    f"""
+                        WITH r AS (SELECT reading_id, random() * (120-1) + 1 AS rnd FROM {table})
+                        UPDATE {table} AS t
+                        SET pm10 = r.rnd
+                        FROM r WHERE r.reading_id = t.reading_id;
+                    """
+                )
+            conn.commit()
+
+    except (Exception, psycopg2.DatabaseError) as error:
+        conn.rollback()
+        cursor.close()
+        # TODO fix error return format -> use Flask response
+        return "Error: %s" % error
+    return "Generated demo data successfully."
+
+
+# from https://uk-air.defra.gov.uk/air-pollution/daqi?view=more-info&pollutant=pm25#pollutant
+daqi_ranges = {
+    "pm10": [
+        {"range": range(0, 17), "daqi": 1},
+        {"range": range(17, 34), "daqi": 2},
+        {"range": range(34, 51), "daqi": 3},
+        {"range": range(51, 59), "daqi": 4},
+        {"range": range(59, 67), "daqi": 5},
+        {"range": range(67, 76), "daqi": 6},
+        {"range": range(76, 84), "daqi": 7},
+        {"range": range(84, 92), "daqi": 8},
+        {"range": range(92, 101), "daqi": 9},
+        {"range": range(101, sys.maxsize), "daqi": 10},
+    ],
+    "pm2.5": [
+        {"range": range(0, 12), "daqi": 1},
+        {"range": range(12, 24), "daqi": 2},
+        {"range": range(24, 36), "daqi": 3},
+        {"range": range(36, 42), "daqi": 4},
+        {"range": range(42, 48), "daqi": 5},
+        {"range": range(48, 54), "daqi": 6},
+        {"range": range(54, 59), "daqi": 7},
+        {"range": range(59, 65), "daqi": 8},
+        {"range": range(65, 71), "daqi": 9},
+        {"range": range(71, sys.maxsize), "daqi": 10},
+    ],
+    "o3": [
+        {"range": range(0, 34), "daqi": 1},
+        {"range": range(34, 67), "daqi": 2},
+        {"range": range(67, 101), "daqi": 3},
+        {"range": range(101, 121), "daqi": 4},
+        {"range": range(121, 141), "daqi": 5},
+        {"range": range(141, 161), "daqi": 6},
+        {"range": range(161, 188), "daqi": 7},
+        {"range": range(188, 214), "daqi": 8},
+        {"range": range(214, 241), "daqi": 9},
+        {"range": range(241, sys.maxsize), "daqi": 10},
+    ],
+    "no2": [
+        {"range": range(0, 68), "daqi": 1},
+        {"range": range(68, 135), "daqi": 2},
+        {"range": range(135, 201), "daqi": 3},
+        {"range": range(201, 268), "daqi": 4},
+        {"range": range(268, 335), "daqi": 5},
+        {"range": range(335, 401), "daqi": 6},
+        {"range": range(401, 468), "daqi": 7},
+        {"range": range(468, 535), "daqi": 8},
+        {"range": range(535, 601), "daqi": 9},
+        {"range": range(601, sys.maxsize), "daqi": 10},
+    ],
+    "so2": [
+        {"range": range(0, 89), "daqi": 1},
+        {"range": range(89, 178), "daqi": 2},
+        {"range": range(178, 267), "daqi": 3},
+        {"range": range(267, 355), "daqi": 4},
+        {"range": range(355, 444), "daqi": 5},
+        {"range": range(444, 533), "daqi": 6},
+        {"range": range(533, 711), "daqi": 7},
+        {"range": range(711, 888), "daqi": 8},
+        {"range": range(888, 1065), "daqi": 9},
+        {"range": range(1065, sys.maxsize), "daqi": 10},
+    ],
+}
+
+daqi_measurement_periods = {
+    "pm2.5": "24H",
+    "pm10": "24H",
+    "o3": "8H",
+    "no2": "1H",
+    "so2": "15M",
+}

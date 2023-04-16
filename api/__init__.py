@@ -4,6 +4,7 @@ from flask_restx import Api, Resource
 from flask_cors import CORS
 from dotenv import load_dotenv
 from api.utils import (
+    generate_demo_data,
     get_chart_format,
     get_feature_collection_between_timestamps,
     get_start_of_prev_day,
@@ -240,7 +241,6 @@ class DEFRA(Resource):
             start_timestamp = get_start_of_prev_day(end_timestamp)
         else:
             start_timestamp = end_timestamp - datetime.timedelta(int(days))
-        print(start_timestamp, end_timestamp)
         return {
             "source": "defra",
             "data": get_feature_collection_between_timestamps(
@@ -268,8 +268,7 @@ class Stats(Resource):
     )
     def get(self):
         args = request.args
-        # todo default should be combined stats from all sources
-        source = args.get("source", "defra")
+
         pollutants = ["o3", "no", "no2", "pm10", "pm2.5"]
         if len(args.getlist("pollutants")) > 0:
             pollutants = args.getlist("pollutants")
@@ -296,3 +295,83 @@ class Utility(Resource):
     # WIP utility route for recreating defra db
     def put(self):
         return fetch_defra_stations()
+
+
+@api.route(
+    "/demo",
+    doc={
+        "description": "Used to demonstrate the use of the api. Returns pollutant data with high values to display colour coding.",
+    },
+)
+class Demo(Resource):
+    @api.doc(
+        params={
+            "feature": "A string representing which feature the route should return data for."
+        }
+    )
+    def get(self):
+        feature = request.args.get("feature")
+
+        # daqi
+        if feature == "daqi":
+            return jsonify(get_daqi_by_pollutant(demo=True))
+
+        # stats
+        elif feature == "stats":
+            return jsonify(
+                get_chart_format(
+                    days=None, cols=["timestamp"], pollutants=["o3", "no", "no2", "pm10", "pm2.5"], demo=True
+                )
+            )
+
+        # aston
+        elif feature == "aston":
+            end_timestamp = datetime.datetime.now()
+            start_timestamp = get_start_of_prev_day(end_timestamp)
+            return {
+                    "source": "aston",
+                    "data": get_feature_collection_between_timestamps(
+                        start_timestamp,
+                        end_timestamp,
+                        [
+                            "sensor_id",
+                            "timestamp",
+                            "pressure",
+                            "humidity",
+                            "temperature",
+                        ],
+                        ["o3", "no", "no2", "pm1", "pm10", "pm2.5"],
+                        "aston_demo",
+                        "aston_sensor",
+                        "sensor_id",
+                        "sensor_location",
+                    ),
+                }
+        # defra (default case if no feature specified)
+        else:
+            end_timestamp = datetime.datetime.now()
+            start_timestamp = get_start_of_prev_day(end_timestamp)
+            return {
+                    "source": "defra",
+                    "data": get_feature_collection_between_timestamps(
+                        start_timestamp,
+                        end_timestamp,
+                        [
+                            "reading_id",
+                            "station_code",
+                            "station_name",
+                            "timestamp",
+                            "windspeed",
+                            "wind_direction",
+                            "temperature",
+                        ],
+                        ["o3", "no", "no2", "nox_as_no2", "pm10", "pm2.5", "so2"],
+                        "defra_demo",
+                        "defra_station",
+                        "station_code",
+                        "station_location",
+                    ),
+                },
+            
+    def put(self):
+        return generate_demo_data()
