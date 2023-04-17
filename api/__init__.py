@@ -34,6 +34,7 @@ def create_scheduler(app):
             ).strftime("%d-%m-%Y")
             fetch_aston_readings(start_timestamp, end_timestamp)
             fetch_defra_readings([year, year + 1])
+            generate_demo_data()
             # TODO add case for no new readings - rerun job in 1 hour
             print(
                 "[%s] Update complete"
@@ -197,7 +198,7 @@ class DAQI(Resource):
 
 
 @api.route("/defra")
-class DEFRA(Resource):
+class Defra(Resource):
     # todo should days be restricted to 1 day/week/month/year?
     @api.doc(
         params={
